@@ -110,7 +110,7 @@ def owner(update: Update, context: CallbackContext):
 # -------------------------
 
 def main():
-    TOKEN = "YOUR_BOT_TOKEN"  # Put your bot token here
+    TOKEN = "7671358820:AAFmF1LzCS2RmGMVWnxIjzCCoVMyCzl7tVs"  # Put your bot token here
 
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
