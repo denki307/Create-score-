@@ -3,7 +3,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from game import CricketGame
 from utils import get_score_text
 
-TOKEN = os.getenv("BOT_TOKEN")  # Heroku reads token from config vars
+TOKEN = os.getenv("BOT_TOKEN")
 
 game_sessions = {}
 
@@ -13,9 +13,10 @@ def start(update, context):
     game_sessions[user_id] = CricketGame()
 
     update.message.reply_text(
-        "🏏 Welcome to Cricket Game Bot!\n"
-        "Type a number between 1–6 to bat.\n"
-        "If bot picks the same number → OUT!"
+        "🏏 *Welcome to Cricket Game Bot!*\n\n"
+        "Send a number *1 to 6* to bat.\n"
+        "If bot chooses the same number → you're OUT! 😵",
+        parse_mode="Markdown"
     )
 
 
@@ -29,37 +30,33 @@ def handle_input(update, context):
     game = game_sessions[user_id]
 
     if not update.message.text.isdigit():
-        update.message.reply_text("Please enter a number between 1–6.")
+        update.message.reply_text("Enter numbers only (1–6).")
         return
 
     user_run = int(update.message.text)
-    if user_run < 1 or user_run > 6:
-        update.message.reply_text("Invalid number! Enter 1–6 only.")
+
+    if not 1 <= user_run <= 6:
+        update.message.reply_text("Choose only between 1–6.")
         return
 
     bot_run, out, total = game.play(user_run)
 
     if out:
         update.message.reply_text(
-            f"😵 You're OUT!\n"
-            f"Bot chose: {bot_run}\n"
-            f"Your final score: {total}\n\n"
-            f"Type /start to play again."
+            f"😵 OUT!\nBot chose {bot_run}\n\n"
+            f"🏏 Final score: {total}\n"
+            f"Use /start to play again."
         )
         del game_sessions[user_id]
         return
 
     update.message.reply_text(
-        f"🏏 You chose: {user_run}\n"
-        f"🤖 Bot chose: {bot_run}\n\n"
-        f"Current Score: {total}\n"
-        f"Keep playing!"
+        f"🏏 You: {user_run}\n🤖 Bot: {bot_run}\n"
+        f"Total Score: {total}"
     )
 
 
 def main():
-    print("🚀 Bot Starting...")
-
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
