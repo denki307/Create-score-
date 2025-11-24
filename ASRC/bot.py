@@ -1,23 +1,62 @@
-import os
+import logging
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from game import play_cricket
+from utils import load_score, save_score
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🏏 Welcome to the Cricket Game Bot!")
+# ------------------------------
+# START COMMAND
+# ------------------------------
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "🏏 Welcome to Cricket Game Bot!\n"
+        "Type /play to start a match!"
+    )
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send /start to begin!")
+# ------------------------------
+# PLAY COMMAND
+# ------------------------------
+def play(update: Update, context: CallbackContext):
+    user_id = update.message.from_user.id
+    result, runs = play_cricket()
 
+    # save score
+    save_score(user_id, runs)
+
+    update.message.reply_text(result)
+
+# ------------------------------
+# MY SCORE
+# ------------------------------
+def myscore(update: Update, context: CallbackContext):
+    user_id = update.message.from_user.id
+    score = load_score(user_id)
+    update.message.reply_text(f"🏏 Your total score: {score} runs")
+
+# ------------------------------
+# MAIN FUNCTION
+# ------------------------------
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    import os
+    TOKEN = os.getenv("BOT_TOKEN")
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
+    if TOKEN is None:
+        logger.error("BOT_TOKEN is missing!")
+        return
 
-    print("Bot Running...")
-    app.run_polling()
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("play", play))
+    dp.add_handler(CommandHandler("myscore", myscore))
+
+    logger.info("Bot Running...")
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
