@@ -1,31 +1,29 @@
-# utils.py — Helper functions for Cricket Game Bot
+import json
+import os
 
-import random
+SCORE_FILE = "score.json"
 
-def get_random_run():
-    """Returns a random run between 0 and 6."""
-    return random.randint(0, 6)
 
-def format_score(user_score, wickets):
-    return f"🏏 Score: {user_score} / {wickets}"
+def load_score():
+    """Load score from score.json file"""
+    if not os.path.exists(SCORE_FILE):
+        return {"runs": 0, "wickets": 0, "balls": 0}
 
-def get_start_message():
+    with open(SCORE_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_score(score):
+    """Save score to score.json file"""
+    with open(SCORE_FILE, "w") as f:
+        json.dump(score, f, indent=4)
+
+
+def format_score(score):
+    """Format score for sending to users"""
     return (
-        "🏏 *Cricket Game Started!*\n"
-        "Choose a run from *0 to 6*.\n"
-        "If your number matches the bot's number → *OUT!*"
-    )
-
-def get_out_message(final_score):
-    return (
-        f"😢 *OUT!*\n\n"
-        f"Your final score: *{final_score}*\n"
-        "Send /start to play again!"
-    )
-
-def get_ball_result(user_run, bot_run, total_score):
-    return (
-        f"👉 You played: *{user_run}*\n"
-        f"🤖 Bot bowled: *{bot_run}*\n"
-        f"📌 Total Score: *{total_score}*"
+        f"🏏 *Current Score:*\n"
+        f"Runs: *{score['runs']}*\n"
+        f"Wickets: *{score['wickets']}*\n"
+        f"Balls: *{score['balls']}*"
     )
