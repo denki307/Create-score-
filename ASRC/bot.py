@@ -69,3 +69,58 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Update
+import random
+
+# -------------------------
+# 🔰 ⚚ 𝐌𝐁𝐓 ꭙ 𝐃𝐄𝐍𝐊𝐈 🜲
+# -------------------------
+OWNER_ID = 7252249791   # <-- Change to your Telegram User ID
+
+# -------------------------
+# 🎮 Cricket Game Logic
+# -------------------------
+
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "🏏 Welcome to the Cricket Game!\n\n"
+        "Use /bat to play your turn.\n"
+        "Whoever gets OUT loses!"
+    )
+
+def bat(update: Update, context: CallbackContext):
+    user_run = random.randint(1, 6)
+    bot_run = random.randint(1, 6)
+
+    if user_run == bot_run:
+        update.message.reply_text(f"❌ OUT! You chose {user_run} and bot chose {bot_run}.\nGame Over!")
+    else:
+        update.message.reply_text(f"🏏 You hit *{user_run}* runs!\nBot chose {bot_run}. Continue batting...")
+
+def owner(update: Update, context: CallbackContext):
+    if update.message.from_user.id == OWNER_ID:
+        update.message.reply_text("👑 You are the Owner!")
+    else:
+        update.message.reply_text("❌ You are not the owner.")
+
+# -------------------------
+# 🔥 BOT STARTER
+# -------------------------
+
+def main():
+    TOKEN = "YOUR_BOT_TOKEN"  # Put your bot token here
+
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("bat", bat))
+    dp.add_handler(CommandHandler("owner", owner))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == "__main__":
+    main()
