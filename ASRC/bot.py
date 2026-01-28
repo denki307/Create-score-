@@ -1,102 +1,132 @@
-import os
-import random
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import logging
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# -------------------------
-# 🔰 BOT CONFIG
-# -------------------------
-OWNER_ID = 7252249791   # Put your actual Telegram ID here
-TOKEN = os.getenv("BOT_TOKEN")
+# 1. Setup Logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-if not TOKEN:
-    print("❌ ERROR: BOT_TOKEN is missing in Heroku Config Vars")
-    exit()
+# 2. Game Storage (In-memory for this example)
+# In a real bot, use a Database (SQLite/MongoDB)
+games = {} 
 
-# -------------------------
-# 🎮 GAME DATA
-# -------------------------
-user_scores = {}
-game_active = {}
+# 3. Keyboards
+def get_numbers_keyboard(side):
+    # 'side' identifies if this is a batting or bowling click
+    keyboard = [[InlineKeyboardButton(str(i), callback_data=f"{side}_{i}") for i in range(1, 7)]]
+    return InlineKeyboardMarkup(keyboard)
 
-# -------------------------
-# /start COMMAND
-# -------------------------
-def start(update, context):
-    user_id = update.effective_user.id
-    user_scores[user_id] = 0
-    game_active[user_id] = True
+# --- Commands ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Handle Deep-linking: When bowler comes from Group to DM
+    if context.args and "bowl_" in context.args[0]:
+        game_id = context.args[0].replace("bowl_", "")
+        await update.message.reply_text(
+            f"🎳 **Bowling Mode!**\nGame ID: {game_id}\nPick your number to bowl:",
+            reply_markup=get_numbers_keyboard("bowl")
+        )
+        return
 
-    update.message.reply_text(
-        "🏏 *Welcome to Cricket Game!*\n\n"
-        "Send a number *1 to 6* to bat.\n"
-        "If bot picks the same number → YOU ARE OUT!",
+    await update.message.reply_text("Welcome! Use /play in a group to start Hand Cricket.")
+
+async def play(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    user = update.effective_user
+    
+    # Initialize game state
+    games[chat_id] = {
+        'batsman_id': user.id,
+        'batsman_name': user.first_name,
+        'bowler_id': None,
+        'bat_choice': None,
+        'bowl_choice': None,
+        'score': 0
+    }
+
+    # Deep link to invite a bowler to DM
+    bot_username = (await context.bot.get_me()).username
+    bowl_url = f"https://t.me/{bot_username}?start=bowl_{chat_id}"
+    
+    keyboard = [
+        [InlineKeyboardButton("🏏 Bat (Group)", callback_data="bat_info")],
+        [InlineKeyboardButton("🎳 Bowl (Go to DM)", url=bowl_url)]
+    ]
+    
+    await update.message.reply_text(
+        f"🏏 **Match Started!**\n**Batsman:** {user.first_name}\n\nWaiting for a Bowler to join via the button below...",
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
-# -------------------------
-# HANDLE BATTING INPUT
-# -------------------------
-def handle_bat(update, context):
-    user_id = update.effective_user.id
+# --- Handling Choices ---
+async def handle_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+    user_id = query.from_user.id
+    
+    # Handle Batting in Group
+    if data.startswith("bat_"):
+        # We find the game associated with this chat
+        chat_id = str(query.message.chat_id)
+        if chat_id not in games: return
+        
+        game = games[chat_id]
+        if user_id != game['batsman_id']:
+            await query.answer("You are not the Batsman!", show_alert=True)
+            return
+            
+        # Instead of picking here, we show the numbers
+        await query.edit_message_reply_markup(reply_markup=get_numbers_keyboard(f"run_{chat_id}"))
 
-    if user_id not in game_active or not game_active[user_id]:
-        update.message.reply_text("Start the game using /start")
-        return
+    # Handle Actual Number Picked (Batsman)
+    elif data.startswith("run_"):
+        parts = data.split("_")
+        chat_id, num = parts[1], int(parts[2])
+        games[chat_id]['bat_choice'] = num
+        await query.answer(f"You chose {num}. Waiting for bowler...")
+        await check_result(chat_id, context, query.message)
 
-    if not update.message.text.isdigit():
-        update.message.reply_text("Enter only numbers 1 to 6.")
-        return
+    # Handle Actual Number Picked (Bowler in DM)
+    elif data.startswith("bowl_"):
+        num = int(data.split("_")[1])
+        # Find which game this bowler belongs to (Logic simplified for 1 active game per user)
+        # In production, store user_id -> chat_id mapping in DB
+        for gid, gdata in games.items():
+            if gdata['bowl_choice'] is None: # Logic to assign bowler
+                games[gid]['bowl_choice'] = num
+                games[gid]['bowler_id'] = user_id
+                await query.edit_message_text(f"✅ You bowled {num}! Check the group.")
+                await check_result(gid, context)
+                break
 
-    user_run = int(update.message.text)
-    if not 1 <= user_run <= 6:
-        update.message.reply_text("Choose between 1–6.")
-        return
+async def check_result(chat_id, context, message=None):
+    game = games[chat_id]
+    if game['bat_choice'] and game['bowl_choice']:
+        bat = game['bat_choice']
+        bowl = game['bowl_choice']
+        
+        if bat == bowl:
+            text = f"❌ **OUT!**\nBoth chose {bat}.\nFinal Score: {game['score']}"
+            del games[chat_id]
+        else:
+            game['score'] += bat
+            text = f"✅ {bat} Runs!\nTotal Score: {game['score']}\n\nNext ball: Batsman pick a number!"
+            game['bat_choice'] = None
+            game['bowl_choice'] = None
+            # Refresh group keyboard
+            
+        if message:
+            await message.edit_text(text, reply_markup=get_numbers_keyboard(f"run_{chat_id}"), parse_mode="Markdown")
+        else:
+            await context.bot.send_message(chat_id, text, reply_markup=get_numbers_keyboard(f"run_{chat_id}"), parse_mode="Markdown")
 
-    bot_run = random.randint(1, 6)
-
-    if user_run == bot_run:
-        final = user_scores[user_id]
-        update.message.reply_text(
-            f"❌ *OUT!*\nBot chose {bot_run}\n\n"
-            f"🏏 Your Final Score: *{final}*\n"
-            f"Start a new game → /start",
-            parse_mode="Markdown"
-        )
-        game_active[user_id] = False
-        return
-
-    user_scores[user_id] += user_run
-
-    update.message.reply_text(
-        f"🏏 You: {user_run}\n🤖 Bot: {bot_run}\n"
-        f"Total Score: {user_scores[user_id]}"
-    )
-
-# -------------------------
-# OWNER COMMAND
-# -------------------------
-def owner(update, context):
-    if update.effective_user.id == OWNER_ID:
-        update.message.reply_text("👑 You are the owner!")
-    else:
-        update.message.reply_text("❌ You are NOT the owner!")
-
-# -------------------------
-# MAIN FUNCTION
-# -------------------------
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("owner", owner))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_bat))
-
-    updater.start_polling()
-    updater.idle()
-
-# -------------------------
-# RUN BOT
-# -------------------------
+# --- Main ---
 if __name__ == "__main__":
-    main()
+    TOKEN = "YOUR_BOT_TOKEN_HERE"
+    app = Application.builder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("play", play))
+    app.add_handler(CallbackQueryHandler(handle_choice))
+    
+    print("Bot is live...")
+    app.run_polling()
