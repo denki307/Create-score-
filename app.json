@@ -1,0 +1,37 @@
+{
+  "name": "Kurigram Multiplayer Cricket Bot",
+  "description": "6-Over Multiplayer Hand Cricket Telegram Bot with Dynamic Colored Inline Buttons built using Kurigram.",
+  "repository": "https://github.com/denki307/Create-score-",
+  "keywords": [
+    "telegram",
+    "cricket-bot",
+    "kurigram",
+    "pyrogram",
+    "multiplayer-game"
+  ],
+  "env": {
+    "API_ID": {
+      "description": "Get this value from my.telegram.org",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Get this value from my.telegram.org",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "Get your Bot Token from @BotFather",
+      "required": true
+    }
+  },
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
