@@ -1,3 +1,4 @@
+import os
 import asyncio
 import inspect
 import random
@@ -11,9 +12,9 @@ from pyrogram.types import (
 )
 
 # ================= CONFIGURATION =================
-API_ID = 12345678  # Unga API_ID podunga (Integer)
-API_HASH = "your_api_hash"  # Unga API_HASH podunga (String)
-BOT_TOKEN = "your_bot_token"  # Unga BOT_TOKEN podunga (String)
+API_ID = int(os.getenv("API_ID", "12345678"))
+API_HASH = os.getenv("API_HASH", "your_api_hash")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "your_bot_token")
 
 app = Client(
     "DynamicColorCricketBot",
