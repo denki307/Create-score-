@@ -1,9 +1,11 @@
 import asyncio
 import inspect
+import io
 import os
 import random
 import urllib.parse
 import aiohttp
+from PIL import Image, ImageDraw, ImageFont
 from pyrogram import Client, enums, filters
 from pyrogram.errors import FloodWait, MessageNotModified, RPCError
 from pyrogram.types import (
@@ -92,7 +94,7 @@ _COLOR_CYCLE = ["blue", "green", "red"]
 _click_counter = 0
 
 
-# ================= USER MENTION HELPER =================
+# ================= USER MENTION & TEXT HELPERS =================
 def mention(user_id: int, name: str) -> str:
     """Creates a clickable Telegram user mention that notifies the player."""
     clean_name = (
@@ -100,6 +102,14 @@ def mention(user_id: int, name: str) -> str:
         or "Player"
     )
     return f"[{clean_name}](tg://user?id={user_id})"
+
+
+def clean_img_text(text: str) -> str:
+    """Strips emojis/unsupported glyphs so Pillow renders crisp text on any server font."""
+    cleaned = "".join(c for c in str(text) if ord(c) < 65535 and ord(c) != 65039)
+    # Keep standard ASCII + basic Latin for guaranteed font compatibility
+    ascii_safe = "".join(c for c in cleaned if 32 <= ord(c) <= 126).strip()
+    return ascii_safe or "Player"
 
 
 # ================= DYNAMIC COLOR BUTTON ENGINE =================
@@ -153,6 +163,262 @@ def c_btn(
         return InlineKeyboardButton(**kwargs)
 
     return InlineKeyboardButton(**kwargs)
+
+
+# ================= AUTO-GENERATED WINNER SCORECARD IMAGE ENGINE =================
+def load_font(size: int, bold: bool = True):
+    """Loads TrueType font safely across Linux/Heroku/Windows with automatic fallback."""
+    font_paths = (
+        [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "arialbd.ttf",
+        ]
+        if bold
+        else [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "arial.ttf",
+        ]
+    )
+    for path in font_paths:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def generate_winner_scorecard_image(
+    match: dict, win_key: str, lose_key: str, banner_text: str
+) -> io.BytesIO:
+    """Generates an IPL Broadcast-Style HD Result Poster separating Winner & Runner-Up teams with all player names & stats."""
+    win_team = match[win_key]
+    lose_team = match[lose_key]
+    is_tie = win_key == lose_key
+
+    max_players = max(len(win_team["players"]), len(lose_team["players"]), 2)
+    width = 1100
+    height = max(680, 420 + (max_players * 44))
+
+    # Create dark stadium background
+    img = Image.new("RGB", (width, height), color=(11, 15, 25))
+    draw = ImageDraw.Draw(img)
+
+    # Fonts
+    f_header = load_font(34, bold=True)
+    f_banner = load_font(28, bold=True)
+    f_team = load_font(30, bold=True)
+    f_score = load_font(24, bold=True)
+    f_sub = load_font(20, bold=True)
+    f_player = load_font(20, bold=False)
+    f_award = load_font(21, bold=True)
+
+    # Top Championship Header Box
+    draw.rounded_rectangle(
+        [(30, 20), (width - 30, 145)],
+        radius=18,
+        fill=(22, 30, 50),
+        outline=(255, 215, 0),
+        width=3,
+    )
+    draw.text(
+        (width // 2, 55),
+        "IPL 6-OVER CHAMPIONSHIP RESULT",
+        fill=(255, 215, 0),
+        font=f_header,
+        anchor="mm",
+    )
+    clean_banner = clean_img_text(banner_text).upper()
+    draw.text(
+        (width // 2, 108),
+        clean_banner,
+        fill=(80, 255, 140),
+        font=f_banner,
+        anchor="mm",
+    )
+
+    # Left & Right Team Panels (Winner on Left, Runner-Up on Right)
+    box_top = 170
+    box_bottom = height - 135
+    left_box = [(30, box_top), (535, box_bottom)]
+    right_box = [(565, box_top), (width - 30, box_bottom)]
+
+    # Left Box: Winner (Green/Gold Theme)
+    draw.rounded_rectangle(
+        left_box,
+        radius=16,
+        fill=(14, 38, 28),
+        outline=(46, 213, 115),
+        width=3,
+    )
+    # Right Box: Runner-Up (Crimson/Dark Theme)
+    draw.rounded_rectangle(
+        right_box,
+        radius=16,
+        fill=(40, 18, 26),
+        outline=(255, 71, 87),
+        width=3,
+    )
+
+    # Helper to populate each team box
+    def draw_team_panel(
+        t_dict: dict, x_center: int, x_left: int, badge: str, badge_color: tuple
+    ):
+        t_name = clean_img_text(t_dict["name"]).upper()
+        overs_s = f"{t_dict['balls']//6}.{t_dict['balls']%6}"
+        score_s = f"SCORE: {t_dict['score']}/{t_dict['wickets']} ({overs_s} / 6.0 OVERS)"
+
+        # Badge (CHAMPIONS / RUNNER-UP)
+        draw.text(
+            (x_center, box_top + 32),
+            badge,
+            fill=badge_color,
+            font=f_sub,
+            anchor="mm",
+        )
+        # Team Name
+        draw.text(
+            (x_center, box_top + 70),
+            t_name,
+            fill=(255, 255, 255),
+            font=f_team,
+            anchor="mm",
+        )
+        # Team Score
+        draw.text(
+            (x_center, box_top + 110),
+            score_s,
+            fill=(255, 215, 0),
+            font=f_score,
+            anchor="mm",
+        )
+
+        # Divider Line
+        draw.line(
+            [(x_left + 20, box_top + 138), (x_left + 485, box_top + 138)],
+            fill=badge_color,
+            width=2,
+        )
+
+        # Squad Table Header
+        draw.text(
+            (x_left + 25, box_top + 152),
+            "PLAYER NAME",
+            fill=(180, 200, 220),
+            font=f_sub,
+        )
+        draw.text(
+            (x_left + 310, box_top + 152),
+            "BAT",
+            fill=(180, 200, 220),
+            font=f_sub,
+        )
+        draw.text(
+            (x_left + 405, box_top + 152),
+            "BOWL",
+            fill=(180, 200, 220),
+            font=f_sub,
+        )
+
+        y_cursor = box_top + 190
+        for idx, (uid, p_name) in enumerate(t_dict["players"].items()):
+            st = match["stats"].get(uid, {})
+            runs = st.get("runs", 0)
+            balls = st.get("balls_faced", 0)
+            wkts = st.get("wickets", 0)
+            runs_c = st.get("runs_conceded", 0)
+            balls_b = st.get("balls_bowled", 0)
+
+            not_out_star = (
+                "*" if (uid not in match.get("all_out_history", set()) and balls > 0) else ""
+            )
+            p_clean = clean_img_text(p_name)[:16]
+            cap_tag = " (C)" if idx == 0 else ""
+
+            bat_str = f"{runs}{not_out_star} ({balls})"
+            bowl_str = f"{wkts}-{runs_c}" if balls_b > 0 else "-"
+
+            draw.text(
+                (x_left + 25, y_cursor),
+                f"{idx+1}. {p_clean}{cap_tag}",
+                fill=(240, 245, 255),
+                font=f_player,
+            )
+            draw.text(
+                (x_left + 310, y_cursor),
+                bat_str,
+                fill=(120, 255, 170),
+                font=f_player,
+            )
+            draw.text(
+                (x_left + 405, y_cursor),
+                bowl_str,
+                fill=(130, 210, 255),
+                font=f_player,
+            )
+            y_cursor += 40
+
+    if is_tie:
+        draw_team_panel(
+            match["team_A"], 282, 30, "TEAM 1 (TIED)", (255, 215, 0)
+        )
+        draw_team_panel(
+            match["team_B"], 817, 565, "TEAM 2 (TIED)", (255, 215, 0)
+        )
+    else:
+        draw_team_panel(
+            win_team, 282, 30, "★ CHAMPIONS / WINNER ★", (46, 213, 115)
+        )
+        draw_team_panel(
+            lose_team, 817, 565, "RUNNER-UP TEAM", (255, 107, 129)
+        )
+
+    # Bottom Awards Panel (Man of the Match / Best Batsman & Best Bowler)
+    draw.rounded_rectangle(
+        [(30, height - 115), (width - 30, height - 20)],
+        radius=14,
+        fill=(22, 30, 50),
+        outline=(100, 160, 255),
+        width=2,
+    )
+
+    stats_list = list(match["stats"].values())
+    if stats_list:
+        top_bat = max(stats_list, key=lambda x: (x["runs"], -x["balls_faced"]))
+        top_bowl = max(
+            stats_list, key=lambda x: (x["wickets"], -x["runs_conceded"])
+        )
+        bat_txt = f"BEST BATSMAN: {clean_img_text(top_bat['name'])} — {top_bat['runs']} Runs ({top_bat['balls_faced']} Balls)"
+        bowl_txt = f"BEST BOWLER: {clean_img_text(top_bowl['name'])} — {top_bowl['wickets']} Wickets ({top_bowl['runs_conceded']} Runs)"
+    else:
+        bat_txt = "BEST BATSMAN: N/A"
+        bowl_txt = "BEST BOWLER: N/A"
+
+    draw.text(
+        (width // 2, height - 85),
+        bat_txt,
+        fill=(255, 215, 0),
+        font=f_award,
+        anchor="mm",
+    )
+    draw.text(
+        (width // 2, height - 48),
+        bowl_txt,
+        fill=(120, 220, 255),
+        font=f_award,
+        anchor="mm",
+    )
+
+    bio = io.BytesIO()
+    bio.name = "ipl_match_winner.png"
+    img.save(bio, "PNG")
+    bio.seek(0)
+    return bio
 
 
 # ================= LIVE TENOR CRICKET GIF ENGINE =================
@@ -352,7 +618,7 @@ def get_ipl_team_selection_kb(
                 "DC 💙", callback_data="setipl_A_DC", color=next_random_color()
             ),
             c_btn(
-                "PBKS ❤️️",
+                "PBKS ❤️",
                 callback_data="setipl_A_PBKS",
                 color=next_random_color(),
             ),
@@ -375,7 +641,7 @@ def get_ipl_team_selection_kb(
                 "MI 💙", callback_data="setipl_B_MI", color=next_random_color()
             ),
             c_btn(
-                "RCB ❤️", callback_data="setipl_B_RCB", color=next_random_color()
+                "RCB ❤", callback_data="setipl_B_RCB", color=next_random_color()
             ),
             c_btn(
                 "KKR 💜", callback_data="setipl_B_KKR", color=next_random_color()
@@ -415,7 +681,11 @@ def get_ipl_team_selection_kb(
         ])
     else:
         rows.append([
-            c_btn("🔙 Back to Match Lobby", callback_data="back_to_lobby", color="green")
+            c_btn(
+                "🔙 Back to Match Lobby",
+                callback_data="back_to_lobby",
+                color="green",
+            )
         ])
 
     return InlineKeyboardMarkup(rows)
@@ -492,7 +762,7 @@ def format_lobby_text(match: dict) -> str:
         "🏏 **6-OVER IPL MULTIPLAYER CRICKET LOBBY**\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👑 **Match Host:** {mention(match['host'], match['host_name'])}\n\n"
-        f"🛡 **{tA_name} ({len(team_a)}):**\n{a_list}\n\n"
+        f"🛡️ **{tA_name} ({len(team_a)}):**\n{a_list}\n\n"
         f"⚔️ **{tB_name} ({len(team_b)}):**\n{b_list}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "• **Min Players:** 2 vs 2 (Max Unlimited)\n"
@@ -622,7 +892,7 @@ async def handle_custom_gif_upload(client: Client, message: Message):
         ],
         [
             c_btn(
-                "🗑 Clear All Saved GIFs",
+                "🗑️ Clear All Saved GIFs",
                 callback_data="savegif_CLEAR",
                 color="red",
             ),
@@ -711,7 +981,8 @@ async def help_command(client: Client, message: Message):
         "6️⃣ **Batting (Group):** Once bowled, the Striker selects a shot (`1-6`) inside the **Group Chat**.\n"
         "   • **Same Number** = 💥 **OUT (Wicket + GIF!)**\n"
         "   • **Different Number** = 🏏 **Runs Scored (4 & 6 trigger GIFs!)**\n"
-        "7️⃣ **Commands:** `/cricket`, `/setteam`, `/score`, `/endcricket`, `/help`",
+        "7️⃣ **Winner Scorecard Poster:** At the end of the match, an HD Winner Scorecard Image with all player names & stats is auto-generated!\n"
+        "8️⃣ **Commands:** `/cricket`, `/setteam`, `/score`, `/endcricket`, `/help`",
         reply_markup=kb,
     )
 
@@ -754,6 +1025,7 @@ async def create_lobby(client: Client, message: Message):
         "striker": None,
         "bowler": None,
         "out_players": [],
+        "all_out_history": set(),
         "current_ball": None,
         "state": None,
         "stats": {},
@@ -868,7 +1140,7 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
 
     if not match or match["status"] != "LOBBY":
         return await safe_answer(
-            cq, "⚠️ Lobby is closed or match already started!", show_alert=True
+            cq, "⚠️️ Lobby is closed or match already started!", show_alert=True
         )
 
     data = cq.data
@@ -898,7 +1170,6 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
             pass
         return
 
-    # Handle setipl_A_CSK or setipl_B_MI
     _, team_letter, ipl_code = data.split("_")
     target_key = "team_A" if team_letter == "A" else "team_B"
     other_key = "team_B" if team_letter == "A" else "team_A"
@@ -906,7 +1177,6 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
     target_players = list(match[target_key]["players"].keys())
     team_captain = target_players[0] if target_players else None
 
-    # Permission Check: Team Captain OR Match Host (or anyone in that team if no captain yet)
     if team_captain:
         if user.id not in [team_captain, match["host"]]:
             cap_name = match[target_key]["players"][team_captain]
@@ -915,13 +1185,9 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
                 f"❌ Only {match[target_key]['name']} Captain ({cap_name}) or the Match Host can rename this team!",
                 show_alert=True,
             )
-    else:
-        # If team is empty, allow Host or any player to set it
-        pass
 
     new_ipl_name = IPL_TEAMS.get(ipl_code, f"{ipl_code} 🏏")
 
-    # Prevent both teams from having the exact same IPL team name
     if match[other_key]["name"] == new_ipl_name:
         return await safe_answer(
             cq,
@@ -946,7 +1212,6 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
         ),
     )
 
-    # Also update main lobby message if edited from a separate /setteam message
     if is_standalone and match.get("lobby_msg_id"):
         try:
             await client.edit_message_text(
@@ -1358,6 +1623,7 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
     if is_wicket:
         bat_dict["wickets"] += 1
         match["out_players"].append(striker_id)
+        match["all_out_history"].add(striker_id)
         match["stats"][bowler_id]["wickets"] += 1
         s_runs = match["stats"][striker_id]["runs"]
         s_balls = match["stats"][striker_id]["balls_faced"]
@@ -1477,19 +1743,25 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
             await asyncio.sleep(2)
             return await prompt_bowler_dm(client, chat_id)
         else:
+            # Determine Winner & Runner-Up Teams for Graphic Poster & Summary
             if target_chased:
                 rem_w = match["max_wickets"] - bat_dict["wickets"]
+                win_key, lose_key = match["bat_team"], match["bowl_team"]
                 result_msg = f"🏆 **{bat_dict['name']} WON BY {rem_w} WICKETS!** 🎉"
+                img_banner = f"{bat_dict['name']} WON BY {rem_w} WICKETS!"
             elif bat_dict["score"] == match["target"] - 1:
+                win_key, lose_key = "team_A", "team_A"
                 result_msg = "🤝 **MATCH TIED! What a thriller!** 🔥"
+                img_banner = "MATCH TIED! THRILLING FINISH!"
             else:
                 runs_margin = (match["target"] - 1) - bat_dict["score"]
+                win_key, lose_key = match["bowl_team"], match["bat_team"]
                 result_msg = (
                     f"🏆 **{bowl_dict['name']} WON BY {runs_margin} RUNS!** 🎉"
                 )
+                img_banner = f"{bowl_dict['name']} WON BY {runs_margin} RUNS!"
 
-            summary = build_match_summary(match, result_msg)
-            cleanup_match(chat_id)
+            summary = build_match_summary(match, result_msg, win_key, lose_key)
             end_kb = InlineKeyboardMarkup([[
                 c_btn(
                     "🏆 Match Completed",
@@ -1497,12 +1769,29 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
                     color=next_random_color(),
                 )
             ]])
+
+            # Generate HD Winner Scorecard Image with all player names & stats!
+            try:
+                poster_bio = generate_winner_scorecard_image(
+                    match, win_key, lose_key, img_banner
+                )
+                cleanup_match(chat_id)
+                await client.send_photo(
+                    chat_id=chat_id,
+                    photo=poster_bio,
+                    caption=summary,
+                    reply_markup=end_kb,
+                )
+            except Exception:
+                cleanup_match(chat_id)
+                await client.send_message(
+                    chat_id, summary, reply_markup=end_kb
+                )
+
             asyncio.create_task(
-                send_event_gif(client, chat_id, "WIN", result_msg, auto_delete=0)
+                send_event_gif(client, chat_id, "WIN", result_msg, auto_delete=15)
             )
-            return await client.send_message(
-                chat_id, summary, reply_markup=end_kb
-            )
+            return
 
     # Bring Next Batsman if Wicket Fell (With Clickable Mention!)
     if is_wicket:
@@ -1542,9 +1831,20 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
     await prompt_bowler_dm(client, chat_id)
 
 
-def build_match_summary(match: dict, result_banner: str) -> str:
+def build_match_summary(
+    match: dict, result_banner: str, win_key: str, lose_key: str
+) -> str:
     tA = match["team_A"]
     tB = match["team_B"]
+
+    # Mention all winning team players in caption
+    if win_key == lose_key:
+        win_squad_mentions = "Match Tied!"
+    else:
+        win_team = match[win_key]
+        win_squad_mentions = ", ".join([
+            mention(uid, name) for uid, name in win_team["players"].items()
+        ])
 
     stats_list = list(match["stats"].values())
     if stats_list:
@@ -1565,6 +1865,7 @@ def build_match_summary(match: dict, result_banner: str) -> str:
         f"🏁 **IPL MATCH COMPLETED!** 🏁\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{result_banner}\n"
+        f"🏅 **Winning Squad:** {win_squad_mentions}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🛡️ **{tA['name']}:** `{tA['score']}/{tA['wickets']}` ({tA['balls']//6}.{tA['balls']%6} ov)\n"
         f"⚔️ **{tB['name']}:** `{tB['score']}/{tB['wickets']}` ({tB['balls']//6}.{tB['balls']%6} ov)\n\n"
