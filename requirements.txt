@@ -1,5 +1,6 @@
 kurigram
 tgcrypto
 aiohttp
+Pillow
 
 
