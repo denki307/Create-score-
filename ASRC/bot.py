@@ -87,8 +87,8 @@ TENOR_SEARCH_QUERIES = {
 }
 
 FALLBACK_CRICKET_GIFS = {
-    "WICKET": ["https://media.tenor.com/f3losXlErrQAAAAM/ms-dhoni-dhoni.gif"],
-    "HATTRICK": ["https://media.tenor.com/f3losXlErrQAAAAM/ms-dhoni-dhoni.gif"], # Add your hat-trick gif link here later
+    "WICKET": ["https://files.catbox.moe/gvywua.mp4"],
+    "HATTRICK": ["https://files.catbox.moe/gvywua.mp4"], # Add your hat-trick gif link here later
     6: ["https://files.catbox.moe/qjb1q0.mp4"],
     4: ["https://files.catbox.moe/ekhicn.mp4"],
     "WIN": ["https://media.tenor.com/f3losXlErrQAAAAM/ms-dhoni-dhoni.gif"],
