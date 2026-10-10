@@ -225,6 +225,16 @@ async def safe_answer(cq: CallbackQuery, text: str = "", show_alert: bool = Fals
     try: await cq.answer(text, show_alert=show_alert)
     except Exception: pass
 
+def init_player_stats(match: dict, uid: int, name: str):
+    if uid not in match["stats"]:
+        match["stats"][uid] = {"id": uid, "name": name, "runs": 0, "balls_faced": 0, "fours": 0, "sixes": 0, "wickets": 0, "runs_conceded": 0, "balls_bowled": 0}
+
+def cleanup_match(chat_id: int):
+    m = matches.get(chat_id)
+    if m: host_active_matches.pop(m["host"], None)
+    for b_id, c_id in list(active_bowlers.items()):
+        if c_id == chat_id: active_bowlers.pop(b_id, None)
+    matches.pop(chat_id, None)
 
 def get_overs_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -233,6 +243,30 @@ def get_overs_kb() -> InlineKeyboardMarkup:
         [c_btn("7 Overs", "setovers_7"), c_btn("8 Overs", "setovers_8"), c_btn("9 Overs", "setovers_9")],
         [c_btn("10 OVERS MATCH", "setovers_10", color="blue")],
     ])
+
+def format_lobby_text(match: dict) -> str:
+    team_a = match["team_A"]["players"]
+    team_b = match["team_B"]["players"]
+    a_list = "\n".join([f"  {i+1}. {mention(uid, name)}" for i, (uid, name) in enumerate(team_a.items())]) or "  *Empty*"
+    b_list = "\n".join([f"  {i+1}. {mention(uid, name)}" for i, (uid, name) in enumerate(team_b.items())]) or "  *Empty*"
+
+    return (
+        f"🏏 **{match.get('overs_limit', 6)}-OVER IPL MULTIPLAYER CRICKET LOBBY**\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👑 **Match Host:** {mention(match['host'], match['host_name'])}\n\n"
+        f"🛡️ **{match['team_A']['name']} ({len(team_a)}):**\n{a_list}\n\n"
+        f"⚔️ **{match['team_B']['name']} ({len(team_b)}):**\n{b_list}\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        "• **Min Players:** 2 vs 2 (Max Unlimited)\n"
+        f"• **Format:** {match.get('overs_limit', 6)} Overs ({match.get('max_balls', 36)} Balls)\n"
+        "• **Custom IPL Names:** Host can click *'Choose IPL Team Names'* or send `/setteam`!\n"
+        "⚠ *Note: Every player must click 'Activate Bot DM' and press `/start`!*"
+    )
+
+def format_ipl_menu_text(match: dict) -> str:
+    return (
+        "✏️ **SELECT CUSTOM IPL TEAM NAMES**\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🛡️ **Team 1:** `{match['team_A']['name']}`\n⚔️ **Team 2:** `{match['team_B']['name']}`\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        "👇 *Match Host, click an IPL franchise below to rename your team!*"
+    )
 
 def get_lobby_kb(match: dict, bot_username: str) -> InlineKeyboardMarkup:
     colors = random.sample(_COLOR_CYCLE, 3)
@@ -407,7 +441,6 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
 async def start_private(client: Client, message: Message):
     b_uname = await get_bot_username(client)
     
-    # "Test Color" button removed as requested.
     kb = InlineKeyboardMarkup([
         [c_btn("➕ Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")]
     ])
