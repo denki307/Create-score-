@@ -397,12 +397,15 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
 
 # ================= BOT COMMANDS =================
 @app.on_message(filters.command("start") & filters.private)
-async def start_private(client: Client, message: Message):
-    b_uname = await get_bot_username(client)
+async def get_bot_username(client: Client) -> str:
+    global BOT_USERNAME
+    if not BOT_USERNAME:
+        me = await client.get_me()
+        BOT_USERNAME = me.username
+    return BOT_USERNAME
     
     kb = InlineKeyboardMarkup([
-        [c_btn("➕ Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")],
-        [c_btn("🎨 Test Dynamic Color!", "dm_color_test", color=next_random_color())]
+        [c_btn("➕ Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")]
     ])
     owner_note = "\n\n👑 **Owner Mode Active:** Send any GIF here in DM to set custom **SIX, FOUR, WICKET, HATTRICK, or WIN** GIFs!" if message.from_user.id == OWNER_ID else ""
     
