@@ -19,7 +19,7 @@ from pyrogram.types import (
 API_ID = int(os.getenv("API_ID", "12345678"))
 API_HASH = os.getenv("API_HASH", "your_api_hash")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "your_bot_token")
-OWNER_ID = int(os.getenv("OWNER_ID", "123456789"))  # Bot Owner Telegram User ID
+OWNER_ID = int(os.getenv("OWNER_ID", "123456789"))
 
 app = Client(
     "DynamicColorCricketBot",
@@ -29,66 +29,31 @@ app = Client(
 )
 
 # Global Storage
-matches = {}  # {chat_id: match_dict}
-active_bowlers = {}  # {bowler_user_id: chat_id}
-host_active_matches = {} # {host_user_id: group_chat_id}
-pending_gif_save = {}  # {owner_id: file_id}
-BOT_USERNAME = None  # Auto-fetched on startup
+matches = {}  
+active_bowlers = {}  
+host_active_matches = {} 
+pending_gif_save = {}  
+BOT_USERNAME = None  
 
-# 10 Official IPL Teams Dictionary
 IPL_TEAMS = {
-    "CSK": "CSK 💛",
-    "MI": "MI 💙",
-    "RCB": "RCB ❤️",
-    "KKR": "KKR 💜",
-    "SRH": "SRH 🧡",
-    "RR": "RR 🩷",
-    "GT": "GT 🩵",
-    "DC": "DC 💙",
-    "PBKS": "PBKS ❤️",
-    "LSG": "LSG 🩵",
+    "CSK": "CSK 💛", "MI": "MI 💙", "RCB": "RCB ❤️", "KKR": "KKR 💜",
+    "SRH": "SRH 🧡", "RR": "RR 🩷", "GT": "GT 🩵", "DC": "DC 💙",
+    "PBKS": "PBKS ❤️", "LSG": "LSG 🩵",
 }
 
-# Custom Telegram GIF file_ids saved by OWNER in Bot DM
-CUSTOM_GIFS = {
-    "WICKET": [],
-    "HATTRICK": [],  # <--- NEW: Hat-Trick GIF
-    6: [],
-    4: [],
-    "WIN": [],
-}
+CUSTOM_GIFS = {"WICKET": [], "HATTRICK": [], 6: [], 4: [], "WIN": []}
 
-# Exact Cricket Search Queries for Live Tenor Fetcher
 TENOR_SEARCH_QUERIES = {
-    "WICKET": [
-        "cricket bowled stumps flying",
-        "cricket umpire out finger",
-        "virat kohli wicket celebration",
-        "jasprit bumrah bowled wicket",
-    ],
-    "HATTRICK": [
-        "cricket hat trick celebration",
-        "bowler hat trick cricket",
-    ],
-    6: [
-        "virat kohli six shot cricket",
-        "virat kohli lofted shot six",
-        "ms dhoni six cricket",
-        "rohit sharma six shot",
-    ],
-    4: [
-        "virat kohli cover drive four",
-        "cricket boundary four shot",
-    ],
-    "WIN": [
-        "virat kohli winning celebration",
-        "india cricket win celebration",
-    ],
+    "WICKET": ["cricket bowled stumps flying", "cricket umpire out finger"],
+    "HATTRICK": ["cricket hat trick celebration", "bowler hat trick cricket"],
+    6: ["virat kohli six shot cricket", "ms dhoni six cricket"],
+    4: ["virat kohli cover drive four", "cricket boundary four shot"],
+    "WIN": ["virat kohli winning celebration", "india cricket win celebration"],
 }
 
 FALLBACK_CRICKET_GIFS = {
     "WICKET": ["https://files.catbox.moe/gvywua.mp4"],
-    "HATTRICK": ["https://files.catbox.moe/gvywua.mp4"], # Add your hat-trick gif link here later
+    "HATTRICK": ["https://files.catbox.moe/gvywua.mp4"], 
     6: ["https://files.catbox.moe/qjb1q0.mp4"],
     4: ["https://files.catbox.moe/ekhicn.mp4"],
     "WIN": ["https://media.tenor.com/f3losXlErrQAAAAM/ms-dhoni-dhoni.gif"],
@@ -99,31 +64,22 @@ _COLOR_CYCLE = ["blue", "green", "red"]
 _click_counter = 0
 
 
-# ================= USER MENTION & TEXT HELPERS =================
+# ================= HELPERS & COLOR BUTTONS =================
 def mention(user_id: int, name: str) -> str:
     clean_name = str(name).replace("[", "").replace("]", "").replace("*", "").strip() or "Player"
     return f"[{clean_name}](tg://user?id={user_id})"
 
-
 def clean_img_text(text: str) -> str:
     cleaned = "".join(c for c in str(text) if ord(c) < 65535 and ord(c) != 65039)
-    ascii_safe = "".join(c for c in cleaned if 32 <= ord(c) <= 126).strip()
-    return ascii_safe or "Player"
+    return "".join(c for c in cleaned if 32 <= ord(c) <= 126).strip() or "Player"
 
-
-# ================= DYNAMIC COLOR BUTTON ENGINE =================
 def next_random_color() -> str:
     global _click_counter
     _click_counter += 1
     return random.choice(_COLOR_CYCLE)
 
-
-def c_btn(
-    text: str, callback_data: str = None, url: str = None, color: str = None
-) -> InlineKeyboardButton:
-    if color is None:
-        color = next_random_color()
-
+def c_btn(text: str, callback_data: str = None, url: str = None, color: str = None) -> InlineKeyboardButton:
+    if color is None: color = next_random_color()
     kwargs = {"text": text}
     if callback_data: kwargs["callback_data"] = callback_data
     if url: kwargs["url"] = url
@@ -131,18 +87,12 @@ def c_btn(
     if "style" in _BTN_PARAMS:
         if hasattr(enums, "ButtonStyle"):
             bs = enums.ButtonStyle
-            style_map = {
-                "blue": getattr(bs, "PRIMARY", getattr(bs, "BLUE", None)),
-                "green": getattr(bs, "SUCCESS", getattr(bs, "GREEN", None)),
-                "red": getattr(bs, "DANGER", getattr(bs, "RED", None)),
-            }
+            style_map = {"blue": getattr(bs, "PRIMARY", getattr(bs, "BLUE", None)), "green": getattr(bs, "SUCCESS", getattr(bs, "GREEN", None)), "red": getattr(bs, "DANGER", getattr(bs, "RED", None))}
             if style_map.get(color) is not None:
                 kwargs["style"] = style_map[color]
                 return InlineKeyboardButton(**kwargs)
-        try:
-            return InlineKeyboardButton(**kwargs, style=color)
-        except Exception:
-            pass
+        try: return InlineKeyboardButton(**kwargs, style=color)
+        except Exception: pass
 
     flag_map = {"blue": "primary", "green": "success", "red": "danger"}
     flag_name = flag_map.get(color)
@@ -157,21 +107,9 @@ def c_btn(
     return InlineKeyboardButton(**kwargs)
 
 
-# ================= AUTO-GENERATED WINNER SCORECARD IMAGE ENGINE =================
+# ================= HD WINNER SCORECARD ENGINE =================
 def load_font(size: int, bold: bool = True):
-    font_paths = (
-        [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "arialbd.ttf",
-        ]
-        if bold
-        else [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "arial.ttf",
-        ]
-    )
+    font_paths = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "arialbd.ttf"] if bold else ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "arial.ttf"]
     for path in font_paths:
         if os.path.exists(path):
             try: return ImageFont.truetype(path, size)
@@ -179,52 +117,32 @@ def load_font(size: int, bold: bool = True):
     try: return ImageFont.load_default(size=size)
     except TypeError: return ImageFont.load_default()
 
-
-def generate_winner_scorecard_image(
-    match: dict, win_key: str, lose_key: str, banner_text: str
-) -> io.BytesIO:
-    win_team = match[win_key]
-    lose_team = match[lose_key]
+def generate_winner_scorecard_image(match: dict, win_key: str, lose_key: str, banner_text: str) -> io.BytesIO:
+    win_team, lose_team = match[win_key], match[lose_key]
     is_tie = win_key == lose_key
-
     max_players = max(len(win_team["players"]), len(lose_team["players"]), 2)
-    width = 1100
-    height = max(680, 420 + (max_players * 44))
+    width, height = 1100, max(680, 420 + (max_players * 44))
 
     img = Image.new("RGB", (width, height), color=(11, 15, 25))
     draw = ImageDraw.Draw(img)
 
-    f_header = load_font(34, bold=True)
-    f_banner = load_font(28, bold=True)
-    f_team = load_font(30, bold=True)
-    f_score = load_font(24, bold=True)
-    f_sub = load_font(20, bold=True)
-    f_player = load_font(20, bold=False)
-    f_award = load_font(21, bold=True)
+    f_header, f_banner, f_team, f_score = load_font(34, True), load_font(28, True), load_font(30, True), load_font(24, True)
+    f_sub, f_player, f_award = load_font(20, True), load_font(20, False), load_font(21, True)
 
     draw.rounded_rectangle([(30, 20), (width - 30, 145)], radius=18, fill=(22, 30, 50), outline=(255, 215, 0), width=3)
     draw.text((width // 2, 55), f"IPL {match.get('overs_limit', 6)}-OVER CHAMPIONSHIP RESULT", fill=(255, 215, 0), font=f_header, anchor="mm")
-    clean_banner = clean_img_text(banner_text).upper()
-    draw.text((width // 2, 108), clean_banner, fill=(80, 255, 140), font=f_banner, anchor="mm")
+    draw.text((width // 2, 108), clean_img_text(banner_text).upper(), fill=(80, 255, 140), font=f_banner, anchor="mm")
 
-    box_top = 170
-    box_bottom = height - 135
-    left_box = [(30, box_top), (535, box_bottom)]
-    right_box = [(565, box_top), (width - 30, box_bottom)]
-
-    draw.rounded_rectangle(left_box, radius=16, fill=(14, 38, 28), outline=(46, 213, 115), width=3)
-    draw.rounded_rectangle(right_box, radius=16, fill=(40, 18, 26), outline=(255, 71, 87), width=3)
+    box_top, box_bottom = 170, height - 135
+    draw.rounded_rectangle([(30, box_top), (535, box_bottom)], radius=16, fill=(14, 38, 28), outline=(46, 213, 115), width=3)
+    draw.rounded_rectangle([(565, box_top), (width - 30, box_bottom)], radius=16, fill=(40, 18, 26), outline=(255, 71, 87), width=3)
 
     def draw_team_panel(t_dict: dict, x_center: int, x_left: int, badge: str, badge_color: tuple):
-        t_name = clean_img_text(t_dict["name"]).upper()
         overs_s = f"{t_dict['balls']//6}.{t_dict['balls']%6}"
-        score_s = f"SCORE: {t_dict['score']}/{t_dict['wickets']} ({overs_s} / {match.get('overs_limit', 6)}.0 OVERS)"
-
         draw.text((x_center, box_top + 32), badge, fill=badge_color, font=f_sub, anchor="mm")
-        draw.text((x_center, box_top + 70), t_name, fill=(255, 255, 255), font=f_team, anchor="mm")
-        draw.text((x_center, box_top + 110), score_s, fill=(255, 215, 0), font=f_score, anchor="mm")
+        draw.text((x_center, box_top + 70), clean_img_text(t_dict["name"]).upper(), fill=(255, 255, 255), font=f_team, anchor="mm")
+        draw.text((x_center, box_top + 110), f"SCORE: {t_dict['score']}/{t_dict['wickets']} ({overs_s} / {match.get('overs_limit', 6)}.0 OVERS)", fill=(255, 215, 0), font=f_score, anchor="mm")
         draw.line([(x_left + 20, box_top + 138), (x_left + 485, box_top + 138)], fill=badge_color, width=2)
-
         draw.text((x_left + 25, box_top + 152), "PLAYER NAME", fill=(180, 200, 220), font=f_sub)
         draw.text((x_left + 310, box_top + 152), "BAT", fill=(180, 200, 220), font=f_sub)
         draw.text((x_left + 405, box_top + 152), "BOWL", fill=(180, 200, 220), font=f_sub)
@@ -232,29 +150,19 @@ def generate_winner_scorecard_image(
         y_cursor = box_top + 190
         for idx, (uid, p_name) in enumerate(t_dict["players"].items()):
             st = match["stats"].get(uid, {})
-            runs = st.get("runs", 0)
-            balls = st.get("balls_faced", 0)
-            wkts = st.get("wickets", 0)
-            runs_c = st.get("runs_conceded", 0)
-            balls_b = st.get("balls_bowled", 0)
-
+            runs, balls, wkts, runs_c, balls_b = st.get("runs", 0), st.get("balls_faced", 0), st.get("wickets", 0), st.get("runs_conceded", 0), st.get("balls_bowled", 0)
             not_out_star = "*" if (uid not in match.get("all_out_history", set()) and balls > 0) else ""
-            p_clean = clean_img_text(p_name)[:16]
-            cap_tag = " (C)" if idx == 0 else ""
-            bat_str = f"{runs}{not_out_star} ({balls})"
-            bowl_str = f"{wkts}-{runs_c}" if balls_b > 0 else "-"
-
-            draw.text((x_left + 25, y_cursor), f"{idx+1}. {p_clean}{cap_tag}", fill=(240, 245, 255), font=f_player)
-            draw.text((x_left + 310, y_cursor), bat_str, fill=(120, 255, 170), font=f_player)
-            draw.text((x_left + 405, y_cursor), bowl_str, fill=(130, 210, 255), font=f_player)
+            draw.text((x_left + 25, y_cursor), f"{idx+1}. {clean_img_text(p_name)[:16]}{' (C)' if idx == 0 else ''}", fill=(240, 245, 255), font=f_player)
+            draw.text((x_left + 310, y_cursor), f"{runs}{not_out_star} ({balls})", fill=(120, 255, 170), font=f_player)
+            draw.text((x_left + 405, y_cursor), f"{wkts}-{runs_c}" if balls_b > 0 else "-", fill=(130, 210, 255), font=f_player)
             y_cursor += 40
 
     if is_tie:
         draw_team_panel(match["team_A"], 282, 30, "TEAM 1 (TIED)", (255, 215, 0))
         draw_team_panel(match["team_B"], 817, 565, "TEAM 2 (TIED)", (255, 215, 0))
     else:
-        draw_team_panel(win_team, 282, 30, "★ CHAMPIONS / WINNER ★", (46, 213, 115))
-        draw_team_panel(lose_team, 817, 565, "RUNNER-UP TEAM", (255, 107, 129))
+        draw_team_panel(win_team, 282, 30, "★ CHAMPIONS ★", (46, 213, 115))
+        draw_team_panel(lose_team, 817, 565, "RUNNER-UP", (255, 107, 129))
 
     draw.rounded_rectangle([(30, height - 115), (width - 30, height - 20)], radius=14, fill=(22, 30, 50), outline=(100, 160, 255), width=2)
     stats_list = list(match["stats"].values())
@@ -264,8 +172,7 @@ def generate_winner_scorecard_image(
         bat_txt = f"BEST BATSMAN: {clean_img_text(top_bat['name'])} — {top_bat['runs']} Runs ({top_bat['balls_faced']} Balls)"
         bowl_txt = f"BEST BOWLER: {clean_img_text(top_bowl['name'])} — {top_bowl['wickets']} Wickets ({top_bowl['runs_conceded']} Runs)"
     else:
-        bat_txt = "BEST BATSMAN: N/A"
-        bowl_txt = "BEST BOWLER: N/A"
+        bat_txt, bowl_txt = "BEST BATSMAN: N/A", "BEST BOWLER: N/A"
 
     draw.text((width // 2, height - 85), bat_txt, fill=(255, 215, 0), font=f_award, anchor="mm")
     draw.text((width // 2, height - 48), bowl_txt, fill=(120, 220, 255), font=f_award, anchor="mm")
@@ -277,38 +184,12 @@ def generate_winner_scorecard_image(
     return bio
 
 
-# ================= LIVE TENOR CRICKET GIF ENGINE =================
-async def fetch_live_cricket_gif(event_key) -> list:
-    queries = TENOR_SEARCH_QUERIES.get(event_key, ["cricket six"])
-    query = urllib.parse.quote(random.choice(queries))
-    url = f"https://g.tenor.com/v1/search?q={query}&key=LIVDSRZULELA&limit=8&media_filter=minimal"
-
-    gifs = []
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=4) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    for item in data.get("results", []):
-                        media = item.get("media", [{}])[0]
-                        mp4_url = media.get("mp4", {}).get("url") or media.get("gif", {}).get("url")
-                        if mp4_url: gifs.append(mp4_url)
-    except Exception: pass
-    return gifs
-
-
+# ================= GIF ENGINE =================
 async def send_event_gif(client: Client, chat_id: int, event_key, caption: str, auto_delete: int = 12):
     kb = InlineKeyboardMarkup([[c_btn("🎬 Match Highlight", callback_data="noop", color=next_random_color())]])
     candidates = list(CUSTOM_GIFS.get(event_key, []))
     random.shuffle(candidates)
-
-    if not candidates:
-        live_gifs = await fetch_live_cricket_gif(event_key)
-        if live_gifs:
-            random.shuffle(live_gifs)
-            candidates.extend(live_gifs)
-
-    candidates.extend(FALLBACK_CRICKET_GIFS.get(event_key, []))
+    if not candidates: candidates.extend(FALLBACK_CRICKET_GIFS.get(event_key, []))
 
     for anim in candidates:
         try:
@@ -321,10 +202,9 @@ async def send_event_gif(client: Client, chat_id: int, event_key, caption: str, 
         except Exception: continue
 
 
-# ================= SAFE TELEGRAM API WRAPPERS =================
+# ================= WRAPPERS & KEYBOARDS =================
 async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMarkup = None):
-    try:
-        return await message.edit_text(text=text, reply_markup=reply_markup)
+    try: return await message.edit_text(text=text, reply_markup=reply_markup)
     except MessageNotModified:
         if reply_markup:
             try: return await message.edit_reply_markup(reply_markup=reply_markup)
@@ -334,690 +214,136 @@ async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMar
         return await safe_edit(message, text, reply_markup)
     except Exception: pass
 
-
 async def safe_answer(cq: CallbackQuery, text: str = "", show_alert: bool = False):
     try: await cq.answer(text, show_alert=show_alert)
     except Exception: pass
 
 
-# ================= DYNAMIC KEYBOARD GENERATORS =================
 def get_overs_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [
-            c_btn("1 Over", callback_data="setovers_1", color=next_random_color()),
-            c_btn("2 Overs", callback_data="setovers_2", color=next_random_color()),
-            c_btn("3 Overs", callback_data="setovers_3", color=next_random_color()),
-        ],
-        [
-            c_btn("4 Overs", callback_data="setovers_4", color=next_random_color()),
-            c_btn("5 Overs", callback_data="setovers_5", color=next_random_color()),
-            c_btn("6 Overs", callback_data="setovers_6", color=next_random_color()),
-        ],
-        [
-            c_btn("7 Overs", callback_data="setovers_7", color=next_random_color()),
-            c_btn("8 Overs", callback_data="setovers_8", color=next_random_color()),
-            c_btn("9 Overs", callback_data="setovers_9", color=next_random_color()),
-        ],
-        [
-            c_btn("10 OVERS MATCH", callback_data="setovers_10", color="blue"),
-        ],
+        [c_btn("1 Over", "setovers_1"), c_btn("2 Overs", "setovers_2"), c_btn("3 Overs", "setovers_3")],
+        [c_btn("4 Overs", "setovers_4"), c_btn("5 Overs", "setovers_5"), c_btn("6 Overs", "setovers_6")],
+        [c_btn("7 Overs", "setovers_7"), c_btn("8 Overs", "setovers_8"), c_btn("9 Overs", "setovers_9")],
+        [c_btn("10 OVERS MATCH", "setovers_10", color="blue")],
     ])
-
 
 def get_lobby_kb(match: dict, bot_username: str) -> InlineKeyboardMarkup:
     colors = random.sample(_COLOR_CYCLE, 3)
-    tA_name = match["team_A"]["name"]
-    tB_name = match["team_B"]["name"]
-
     return InlineKeyboardMarkup([
-        [
-            c_btn(f"Join {tA_name}", callback_data="join_A", color=colors[0]),
-            c_btn(f"Join {tB_name}", callback_data="join_B", color=colors[1]),
-        ],
-        [
-            c_btn("✏️ Choose IPL Team Names", callback_data="open_ipl_menu", color=colors[2]),
-        ],
-        [
-            c_btn("🔄 Refresh Colors", callback_data="refresh_lobby", color=next_random_color()),
-            c_btn("🚪 Leave Lobby", callback_data="leave_lobby", color=next_random_color()),
-        ],
-        [
-            c_btn("🤖 Activate Bot DM", url=f"https://t.me/{bot_username}?start=cricket", color=next_random_color()),
-        ],
-        [
-            c_btn("🚀 Start Match (Host)", callback_data="start_game", color=next_random_color()),
-            c_btn("✖ End Lobby (Host)", callback_data="cancel_game", color=next_random_color()),
-        ],
+        [c_btn(f"Join {match['team_A']['name']}", "join_A", color=colors[0]), c_btn(f"Join {match['team_B']['name']}", "join_B", color=colors[1])],
+        [c_btn("✏️ Choose IPL Team Names", "open_ipl_menu", color=colors[2])],
+        [c_btn("🔄 Refresh Colors", "refresh_lobby"), c_btn("🚪 Leave Lobby", "leave_lobby")],
+        [c_btn("🤖 Activate Bot DM", url=f"https://t.me/{bot_username}?start=cricket")],
+        [c_btn("🚀 Start Match (Host)", "start_game", color="blue"), c_btn("✖ End Lobby (Host)", "cancel_game", color="red")],
     ])
-
 
 def get_ipl_team_selection_kb(match: dict, standalone: bool = False) -> InlineKeyboardMarkup:
-    tA_curr = match["team_A"]["name"]
-    tB_curr = match["team_B"]["name"]
-
     rows = [
-        [c_btn(f"⬇️ Select for {tA_curr} (Team 1) ⬇️", callback_data="noop", color="blue")],
-        [c_btn("CSK 💛", "setipl_A_CSK", color=next_random_color()), c_btn("MI 💙", "setipl_A_MI", color=next_random_color()), c_btn("RCB ❤️", "setipl_A_RCB", color=next_random_color()), c_btn("KKR 💜", "setipl_A_KKR", color=next_random_color()), c_btn("SRH 🧡", "setipl_A_SRH", color=next_random_color())],
-        [c_btn("RR 🩷", "setipl_A_RR", color=next_random_color()), c_btn("GT 🩵", "setipl_A_GT", color=next_random_color()), c_btn("DC 💙", "setipl_A_DC", color=next_random_color()), c_btn("PBKS ❤️", "setipl_A_PBKS", color=next_random_color()), c_btn("LSG 🩵", "setipl_A_LSG", color=next_random_color())],
-        [c_btn(f"⬇️ Select for {tB_curr} (Team 2) ⬇️", callback_data="noop", color="red")],
-        [c_btn("CSK 💛", "setipl_B_CSK", color=next_random_color()), c_btn("MI 💙", "setipl_B_MI", color=next_random_color()), c_btn("RCB ❤", "setipl_B_RCB", color=next_random_color()), c_btn("KKR 💜", "setipl_B_KKR", color=next_random_color()), c_btn("SRH 🧡", "setipl_B_SRH", color=next_random_color())],
-        [c_btn("RR 🩷", "setipl_B_RR", color=next_random_color()), c_btn("GT 🩵", "setipl_B_GT", color=next_random_color()), c_btn("DC 💙", "setipl_B_DC", color=next_random_color()), c_btn("PBKS ❤️", "setipl_B_PBKS", color=next_random_color()), c_btn("LSG 🩵", "setipl_B_LSG", color=next_random_color())],
+        [c_btn(f"⬇️ Select for {match['team_A']['name']} (Team 1) ⬇️", "noop", color="blue")],
+        [c_btn("CSK 💛", "setipl_A_CSK"), c_btn("MI 💙", "setipl_A_MI"), c_btn("RCB ❤️", "setipl_A_RCB"), c_btn("KKR 💜", "setipl_A_KKR"), c_btn("SRH 🧡", "setipl_A_SRH")],
+        [c_btn("RR 🩷", "setipl_A_RR"), c_btn("GT 🩵", "setipl_A_GT"), c_btn("DC 💙", "setipl_A_DC"), c_btn("PBKS ❤️", "setipl_A_PBKS"), c_btn("LSG 🩵", "setipl_A_LSG")],
+        [c_btn(f"⬇️ Select for {match['team_B']['name']} (Team 2) ⬇️", "noop", color="red")],
+        [c_btn("CSK 💛", "setipl_B_CSK"), c_btn("MI 💙", "setipl_B_MI"), c_btn("RCB ❤", "setipl_B_RCB"), c_btn("KKR 💜", "setipl_B_KKR"), c_btn("SRH 🧡", "setipl_B_SRH")],
+        [c_btn("RR 🩷", "setipl_B_RR"), c_btn("GT 🩵", "setipl_B_GT"), c_btn("DC 💙", "setipl_B_DC"), c_btn("PBKS ❤️", "setipl_B_PBKS"), c_btn("LSG 🩵", "setipl_B_LSG")],
     ]
-
-    if standalone: rows.append([c_btn("✅ Done / Close Menu", callback_data="close_setteam", color="green")])
-    else: rows.append([c_btn("🔙 Back to Match Lobby", callback_data="back_to_lobby", color="green")])
+    if standalone: rows.append([c_btn("✅ Done / Close Menu", "close_setteam", color="green")])
+    else: rows.append([c_btn("🔙 Back to Match Lobby", "back_to_lobby", color="green")])
     return InlineKeyboardMarkup(rows)
-
 
 def get_bowler_numbers_kb(prefix: str) -> InlineKeyboardMarkup:
-    """Bowler keyboard without 0"""
     return InlineKeyboardMarkup([
-        [c_btn("1️⃣", callback_data=f"{prefix}_1", color=next_random_color()), c_btn("2️⃣", callback_data=f"{prefix}_2", color=next_random_color()), c_btn("3️⃣", callback_data=f"{prefix}_3", color=next_random_color())],
-        [c_btn("4️⃣ FOUR", callback_data=f"{prefix}_4", color=next_random_color()), c_btn("5️⃣", callback_data=f"{prefix}_5", color=next_random_color()), c_btn("6️⃣ SIX", callback_data=f"{prefix}_6", color=next_random_color())],
+        [c_btn("1️⃣", f"{prefix}_1"), c_btn("2️⃣", f"{prefix}_2"), c_btn("3️⃣", f"{prefix}_3")],
+        [c_btn("4️⃣ FOUR", f"{prefix}_4", color="blue"), c_btn("5️⃣", f"{prefix}_5"), c_btn("6️⃣ SIX", f"{prefix}_6", color="green")],
     ])
-
 
 def get_batsman_numbers_kb(prefix: str) -> InlineKeyboardMarkup:
-    """Batsman keyboard with 0 for Defend"""
     return InlineKeyboardMarkup([
-        [c_btn("0️⃣ (Dot Ball / Defend)", callback_data=f"{prefix}_0", color="red")],
-        [c_btn("1️⃣", callback_data=f"{prefix}_1", color=next_random_color()), c_btn("2️⃣", callback_data=f"{prefix}_2", color=next_random_color()), c_btn("3️⃣", callback_data=f"{prefix}_3", color=next_random_color())],
-        [c_btn("4️⃣ FOUR", callback_data=f"{prefix}_4", color=next_random_color()), c_btn("5️⃣", callback_data=f"{prefix}_5", color=next_random_color()), c_btn("6️⃣ SIX", callback_data=f"{prefix}_6", color=next_random_color())],
+        [c_btn("0️⃣ (Dot Ball / Defend)", f"{prefix}_0", color="red")],
+        [c_btn("1️⃣", f"{prefix}_1"), c_btn("2️⃣", f"{prefix}_2"), c_btn("3️⃣", f"{prefix}_3")],
+        [c_btn("4️⃣ FOUR", f"{prefix}_4", color="blue"), c_btn("5️⃣", f"{prefix}_5"), c_btn("6️⃣ SIX", f"{prefix}_6", color="green")],
     ])
-
 
 def get_host_player_select_kb(match: dict, need_bat: bool, need_bowl: bool) -> InlineKeyboardMarkup:
-    rows = []
-    bat_team = match[match["bat_team"]]
-    bowl_team = match[match["bowl_team"]]
-
+    rows, bat_team, bowl_team = [], match[match["bat_team"]], match[match["bowl_team"]]
     if need_bat:
         avail_bat = {uid: name for uid, name in bat_team["players"].items() if uid not in match["out_players"]}
-        rows.append([c_btn(f"👇 Select Next Striker ({bat_team['name']}) 👇", callback_data="noop", color="blue")])
-        for uid, name in avail_bat.items():
-            rows.append([c_btn(f"🏏 {name}", callback_data=f"hostsel_bat_{uid}", color=next_random_color())])
-
+        rows.append([c_btn(f"👇 Select Next Striker ({bat_team['name']}) 👇", "noop", color="blue")])
+        for uid, name in avail_bat.items(): rows.append([c_btn(f"🏏 {name}", f"hostsel_bat_{uid}")])
     if need_bowl:
-        rows.append([c_btn(f"👇 Select Next Bowler ({bowl_team['name']}) 👇", callback_data="noop", color="red")])
-        for uid, name in bowl_team["players"].items():
-            rows.append([c_btn(f"🎳 {name}", callback_data=f"hostsel_bowl_{uid}", color=next_random_color())])
-
+        rows.append([c_btn(f"👇 Select Next Bowler ({bowl_team['name']}) 👇", "noop", color="red")])
+        for uid, name in bowl_team["players"].items(): rows.append([c_btn(f"🎳 {name}", f"hostsel_bowl_{uid}")])
     return InlineKeyboardMarkup(rows)
 
-
-def get_toss_kb() -> InlineKeyboardMarkup:
-    c1, c2 = random.sample(_COLOR_CYCLE, 2)
-    return InlineKeyboardMarkup([[c_btn("🪙 Heads", callback_data="toss_Heads", color=c1), c_btn("🪙 Tails", callback_data="toss_Tails", color=c2)]])
-
-def get_toss_decision_kb() -> InlineKeyboardMarkup:
-    c1, c2 = random.sample(_COLOR_CYCLE, 2)
-    return InlineKeyboardMarkup([[c_btn("🏏 Batting", callback_data="decide_bat", color=c1), c_btn("🎳 Bowling", callback_data="decide_bowl", color=c2)]])
+def get_toss_kb() -> InlineKeyboardMarkup: return InlineKeyboardMarkup([[c_btn("🪙 Heads", "toss_Heads"), c_btn("🪙 Tails", "toss_Tails")]])
+def get_toss_decision_kb() -> InlineKeyboardMarkup: return InlineKeyboardMarkup([[c_btn("🏏 Batting", "decide_bat"), c_btn("🎳 Bowling", "decide_bowl")]])
 
 
-# ================= HELPER FUNCTIONS =================
-async def get_bot_username(client: Client) -> str:
-    global BOT_USERNAME
-    if not BOT_USERNAME:
-        me = await client.get_me()
-        BOT_USERNAME = me.username
-    return BOT_USERNAME
-
-def format_lobby_text(match: dict) -> str:
-    team_a = match["team_A"]["players"]
-    team_b = match["team_B"]["players"]
-    a_list = "\n".join([f"  {i+1}. {mention(uid, name)}" for i, (uid, name) in enumerate(team_a.items())]) or "  *Empty*"
-    b_list = "\n".join([f"  {i+1}. {mention(uid, name)}" for i, (uid, name) in enumerate(team_b.items())]) or "  *Empty*"
-
-    return (
-        f"🏏 **{match.get('overs_limit', 6)}-OVER IPL MULTIPLAYER CRICKET LOBBY**\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👑 **Match Host:** {mention(match['host'], match['host_name'])}\n\n"
-        f"🛡️ **{match['team_A']['name']} ({len(team_a)}):**\n{a_list}\n\n"
-        f"⚔️ **{match['team_B']['name']} ({len(team_b)}):**\n{b_list}\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        "• **Min Players:** 2 vs 2 (Max Unlimited)\n"
-        f"• **Format:** {match.get('overs_limit', 6)} Overs ({match.get('max_balls', 36)} Balls)\n"
-        "• **Custom IPL Names:** Host can click *'Choose IPL Team Names'* or send `/setteam`!\n"
-        "⚠ *Note: Every player must click 'Activate Bot DM' and press `/start`!*"
-    )
-
-def format_ipl_menu_text(match: dict) -> str:
-    return (
-        "✏️ **SELECT CUSTOM IPL TEAM NAMES**\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🛡️ **Team 1:** `{match['team_A']['name']}`\n⚔️ **Team 2:** `{match['team_B']['name']}`\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        "👇 *Match Host, click an IPL franchise below to rename your team!*"
-    )
-
-def init_player_stats(match: dict, uid: int, name: str):
-    if uid not in match["stats"]:
-        match["stats"][uid] = {"id": uid, "name": name, "runs": 0, "balls_faced": 0, "fours": 0, "sixes": 0, "wickets": 0, "runs_conceded": 0, "balls_bowled": 0}
-
-def cleanup_match(chat_id: int):
-    m = matches.get(chat_id)
-    if m: host_active_matches.pop(m["host"], None)
-    for b_id, c_id in list(active_bowlers.items()):
-        if c_id == chat_id: active_bowlers.pop(b_id, None)
-    matches.pop(chat_id, None)
-
-
-# ================= BOT COMMANDS & OWNER-ONLY GIF MANAGER =================
-@app.on_message(filters.command("start") & filters.private)
-async def start_private(client: Client, message: Message):
-    b_uname = await get_bot_username(client)
+# ================= TIMERS & MATCH EVALUATION ENGINE =================
+async def match_timer_task(client: Client, chat_id: int, state_type: str, turn_id: int):
+    """60s Timer Task for Batting, Bowling, and Host Selection."""
+    # 30 SECONDS WAIT
+    await asyncio.sleep(30)
+    match = matches.get(chat_id)
+    if not match or match.get("state") != state_type or match.get("turn_id") != turn_id: return
     
-    # FEATURE: Start menu with Group Add Button
-    kb = InlineKeyboardMarkup([
-        [c_btn("➕ Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")],
-        [c_btn("🎨 Test Dynamic Color!", callback_data="dm_color_test", color=next_random_color())]
-    ])
+    m_name = ""
+    if state_type == "WAIT_BOWLER": m_name = mention(match["bowler"], match[match["bowl_team"]]["players"][match["bowler"]])
+    elif state_type == "WAIT_BATSMAN": m_name = mention(match["striker"], match[match["bat_team"]]["players"][match["striker"]])
+    elif state_type == "HOST_SELECTING": m_name = mention(match["host"], match["host_name"])
     
-    owner_note = "\n\n👑 **Owner Mode Active:** Send any GIF here in DM to set custom **SIX, FOUR, WICKET, HATTRICK, or WIN** GIFs!" if message.from_user.id == OWNER_ID else ""
+    await client.send_message(chat_id, f"⏳ **30 Seconds Remaining!** {m_name}, please make your move fast!")
+
+    # 10 SECONDS WAIT (Total 50s elapsed)
+    await asyncio.sleep(20)
+    match = matches.get(chat_id)
+    if not match or match.get("state") != state_type or match.get("turn_id") != turn_id: return
+    await client.send_message(chat_id, f"⏳ **10 Seconds Left!!** {m_name}, hurry up!")
+
+    # TIMEOUT TRIGGER (Total 60s elapsed)
+    await asyncio.sleep(10)
+    match = matches.get(chat_id)
+    if not match or match.get("state") != state_type or match.get("turn_id") != turn_id: return
     
-    explanation = (
-        "🏏 **IPL MULTIPLAYER CRICKET BOT** 🏏\n\n"
-        "**Epdi Work Aagum? (How it works):**\n"
-        "1️⃣ First, add this bot to your telegram group.\n"
-        "2️⃣ Group la `/cricket` nu send pannunga. Host Overs select pannadhum Lobby open aagum.\n"
-        "3️⃣ Group la ulla yaru venaalum Join pannikalam. (Aana ellarum DM la vandhu `/start` kuduthurukkanum).\n"
-        "4️⃣ Match start aanadhum, **Match Host** thaan Batsman & Bowler-a select pannuvaaru.\n"
-        "5️⃣ **Bowling:** Bowler-ku Private DM-la 1-6 numbers varum. Adhula thevaiyana number-a click pannanum.\n"
-        "6️⃣ **Batting:** Group-la Batsman-ku 0-6 numbers varum. Batsman click panna udane result varum!\n"
-        "   💥 *Rendu perum same number select panna = WICKET!*\n"
-        "   🏏 *Different number na = RUNS/DOT BALL!*\n"
-    )
-
-    await message.reply(
-        f"👋 **Hello {mention(message.from_user.id, message.from_user.first_name)}!**\n\n"
-        f"{explanation}"
-        f"{owner_note}",
-        reply_markup=kb,
-    )
-
-
-@app.on_message(filters.animation & filters.private)
-async def handle_custom_gif_upload(client: Client, message: Message):
-    if message.from_user.id != OWNER_ID: return await message.reply("❌ **Access Denied!** Only the Bot Owner can set or modify custom match GIFs.")
-    fid = message.animation.file_id
-    pending_gif_save[message.from_user.id] = fid
-    kb = InlineKeyboardMarkup([
-        [c_btn("🟢 Save as SIX (6) GIF", callback_data="savegif_6", color="green"), c_btn("💥 Save as WICKET GIF", callback_data="savegif_WICKET", color="red")],
-        [c_btn("🎩 Save as HAT-TRICK GIF", callback_data="savegif_HATTRICK", color="blue"), c_btn("🔵 Save as FOUR (4) GIF", callback_data="savegif_4", color="blue")],
-        [c_btn("🏆 Save as WIN GIF", callback_data="savegif_WIN", color=next_random_color()), c_btn("🗑️ Clear All Saved GIFs", callback_data="savegif_CLEAR", color="red")]
-    ])
-    await message.reply("🎬 **Owner GIF Manager:**\nWhere should this GIF be used during live matches?", reply_markup=kb)
-
-
-@app.on_callback_query(filters.regex(r"^savegif_(6|4|WICKET|WIN|HATTRICK|CLEAR)$"))
-async def handle_save_gif_callback(client: Client, cq: CallbackQuery):
-    if cq.from_user.id != OWNER_ID: return await safe_answer(cq, "❌ Only the Bot Owner can do this!", show_alert=True)
-    uid = cq.from_user.id
-    choice = cq.data.split("_")[1]
-    if choice == "CLEAR":
-        for k in CUSTOM_GIFS: CUSTOM_GIFS[k].clear()
-        await safe_answer(cq, "🗑️ Cleared all custom GIFs!", show_alert=True)
-        return await safe_edit(cq.message, "🗑️ **All custom GIFs cleared! Bot will now use Live Tenor Cricket GIFs.**")
-    fid = pending_gif_save.get(uid)
-    if not fid: return await safe_answer(cq, "⚠️ Please send the GIF again!", show_alert=True)
-    key = int(choice) if choice in ["4", "6"] else choice
-    CUSTOM_GIFS[key].append(fid)
-    done_kb = InlineKeyboardMarkup([[c_btn(f"✅ Saved for {choice} (Total: {len(CUSTOM_GIFS[key])})", callback_data="noop", color=next_random_color())]])
-    await safe_answer(cq, f"✅ Saved as {choice} GIF!", show_alert=True)
-    await safe_edit(cq.message, f"✅ **Success!** This GIF will now appear whenever a **{choice}** happens in the match!", reply_markup=done_kb)
-
-
-@app.on_callback_query(filters.regex(r"^dm_color_test$"))
-async def test_dm_color_change(client: Client, cq: CallbackQuery):
-    new_color = next_random_color()
-    kb = InlineKeyboardMarkup([[c_btn(f"🎨 Color Changed! ({new_color.upper()}) - Click Again", callback_data="dm_color_test", color=new_color)]])
-    await safe_answer(cq, f"Button color shifted to {new_color.upper()}!")
-    await safe_edit(cq.message, cq.message.text.markdown, reply_markup=kb)
-
-
-@app.on_message(filters.command("help") & (filters.group | filters.private))
-async def help_command(client: Client, message: Message):
-    kb = InlineKeyboardMarkup([[c_btn("🎨 Click to Shift Color", callback_data="noop", color=next_random_color())]])
-    await message.reply(
-        "🏏 **HOW TO PLAY IPL MULTIPLAYER CRICKET**\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        "1️⃣ **Start Match:** Send `/cricket` in a group to open the Lobby.\n"
-        "2️⃣ **Join Teams:** Minimum **2 players per team** (Unlimited Max). All players must start the bot in DM first.\n"
-        "3️⃣ **Custom IPL Team Names:** Host can use `/setteam` or click **'Choose IPL Team Names'**.\n"
-        "4️⃣ **Host Controls:** Only the user who started the game (`/cricket`) can **Start/End** the match and **Select Players**.\n"
-        "5️⃣ **Bowling (DM):** The Bowler secretly selects a number (`1-6`) inside the **Bot's Private DM**.\n"
-        "6️⃣ **Batting (Group):** Once bowled, the Striker selects a shot (`0-6`) inside the **Group Chat**.\n"
-        "   • **Same Number** = 💥 **OUT (Wicket + GIF!)**\n"
-        "   • **Different Number** = 🏏 **Runs Scored (4 & 6 trigger GIFs!)**\n"
-        "7️⃣ **Winner Scorecard Poster:** At the end of the match, an HD Winner Scorecard Image is auto-generated!\n"
-        "8️⃣ **Commands:** `/cricket`, `/setteam`, `/score`, `/endcricket`, `/help`", reply_markup=kb
-    )
-
-
-@app.on_message(filters.command("cricket") & filters.group)
-async def create_lobby(client: Client, message: Message):
-    chat_id = message.chat.id
-    if chat_id in matches:
-        m = matches[chat_id]
-        return await message.reply(f"⚠️ **A match is already active in this group!**\n👑 Only Match Host ({mention(m['host'], m['host_name'])}) can end it using `/endcricket`.")
-
-    matches[chat_id] = {"host": message.from_user.id, "host_name": message.from_user.first_name, "status": "SELECT_OVERS"}
-    await message.reply(f"👑 **Match Host: {message.from_user.first_name}**\n\n👉 **Host**, please select the number of overs for this match to open the lobby:", reply_markup=get_overs_kb())
-
-
-@app.on_callback_query(filters.regex(r"^setovers_(\d+)$"))
-async def setup_lobby_after_overs(client: Client, cq: CallbackQuery):
-    chat_id = cq.message.chat.id
-    match = matches.get(chat_id)
-    if not match or match.get("status") != "SELECT_OVERS": return await safe_answer(cq, "⚠️ Session Expired!", show_alert=True)
-    if cq.from_user.id != match["host"]: return await safe_answer(cq, "❌ Only the Match Host can select overs!", show_alert=True)
-
-    overs = int(cq.data.split("_")[1])
-    match.update({
-        "status": "LOBBY", "overs_limit": overs, "max_balls": overs * 6, "innings": 1, "target": None, "max_wickets": 2,
-        "team_A": {"name": "Team A 🔵", "players": {}, "score": 0, "wickets": 0, "balls": 0},
-        "team_B": {"name": "Team B 🔴", "players": {}, "score": 0, "wickets": 0, "balls": 0},
-        "bat_team": None, "bowl_team": None, "striker": None, "bowler": None,
-        "out_players": [], "all_out_history": set(), "current_ball": None, "state": None, "stats": {}, "lobby_msg_id": None,
-        "consecutive_wickets": 0,  # <--- FEATURE: Hat-Trick Tracker Initialized
-    })
-
-    host_active_matches[cq.from_user.id] = chat_id
-    b_uname = await get_bot_username(client)
-    await safe_answer(cq, f"✅ Selected {overs} Overs!")
-    sent = await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-    if isinstance(sent, Message): match["lobby_msg_id"] = sent.id
-
-
-@app.on_message(filters.command("setteam") & filters.group)
-async def setteam_command(client: Client, message: Message):
-    chat_id = message.chat.id
-    match = matches.get(chat_id)
-    if not match: return await message.reply("❌ **No active match lobby found!** Send `/cricket` first.")
-    if match["status"] != "LOBBY": return await message.reply("⚠️ **Team names can only be changed while in the Match Lobby!**")
-    if message.from_user.id != match["host"]: return await message.reply("❌ **Only the Match Host can change IPL team names!**")
-    await message.reply(format_ipl_menu_text(match), reply_markup=get_ipl_team_selection_kb(match, standalone=True))
-
-
-@app.on_message(filters.command("endcricket") & filters.group)
-async def force_end_match(client: Client, message: Message):
-    chat_id = message.chat.id
-    match = matches.get(chat_id)
-    if not match: return await message.reply("❌ **There is no active match in this group!**")
-    if message.from_user.id != match["host"]: return await message.reply(f"❌ **Access Denied!**\nOnly the Match Host ({mention(match['host'], match['host_name'])}) can end this match!")
-    cleanup_match(chat_id)
-    await message.reply(f"🛑 **Match has been ended by the Host ({mention(message.from_user.id, message.from_user.first_name)})!**")
-
-
-@app.on_message(filters.command("score") & filters.group)
-async def show_scorecard(client: Client, message: Message):
-    chat_id = message.chat.id
-    match = matches.get(chat_id)
-    if not match or match["status"] != "LIVE": return await message.reply("❌ **No live match is currently in progress!**")
-
-    bat = match[match["bat_team"]]
-    bowl = match[match["bowl_team"]]
-    overs = f"{bat['balls']//6}.{bat['balls']%6}"
-    striker_id = match.get("striker")
-    bowler_id = match.get("bowler")
-    
-    striker_mention = mention(striker_id, bat["players"].get(striker_id, "Striker")) if striker_id else "N/A"
-    bowler_mention = mention(bowler_id, bowl["players"].get(bowler_id, "Bowler")) if bowler_id else "N/A"
-
-    s_stat = match["stats"].get(striker_id, {"runs": 0, "balls_faced": 0})
-    b_stat = match["stats"].get(bowler_id, {"wickets": 0, "runs_conceded": 0, "balls_bowled": 0})
-
-    text = (
-        f"📊 **LIVE SCORECARD (Innings {match['innings']})**\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👑 **Host:** {mention(match['host'], match['host_name'])}\n"
-        f"🏏 **{bat['name']}:** `{bat['score']}/{bat['wickets']}` ({overs} / {match.get('overs_limit', 6)}.0 Overs)\n"
-        f"🎯 **Target:** `{match['target'] or '1st Innings'}` | **Max Wickets:** `{match['max_wickets']}`\n\n"
-        f"👤 **Striker:** {striker_mention} — `{s_stat['runs']}* ({s_stat['balls_faced']})`\n"
-        f"🎳 **Bowler:** {bowler_mention} — `{b_stat['wickets']}-{b_stat['runs_conceded']} ({b_stat['balls_bowled']//6}.{b_stat['balls_bowled']%6})`\n━━━━━━━━━━━━━━━━━━━━━━"
-    )
-    await message.reply(text, reply_markup=InlineKeyboardMarkup([[c_btn("📊 Live Scoreboard", callback_data="noop", color=next_random_color())]]))
-
-
-@app.on_callback_query(filters.regex(r"^(open_ipl_menu|back_to_lobby|close_setteam|setipl_(A|B)_([A-Z]+))$"))
-async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
-    chat_id = cq.message.chat.id
-    user = cq.from_user
-    match = matches.get(chat_id)
-
-    if not match or match["status"] != "LOBBY": return await safe_answer(cq, "⚠ Lobby is closed or match already started!", show_alert=True)
-    if cq.data != "back_to_lobby" and user.id != match["host"]: return await safe_answer(cq, "❌ Only the Match Host can change IPL Team names!", show_alert=True)
-
-    data = cq.data
-    b_uname = await get_bot_username(client)
-
-    if data == "open_ipl_menu":
-        await safe_answer(cq, "✏️ Select IPL Team Names!")
-        return await safe_edit(cq.message, format_ipl_menu_text(match), reply_markup=get_ipl_team_selection_kb(match, standalone=False))
-
-    elif data == "back_to_lobby":
-        await safe_answer(cq, "🔙 Back to Lobby!")
-        return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-
-    elif data == "close_setteam":
-        await safe_answer(cq, "✅ Closed team selection menu!")
-        try: await cq.message.delete()
-        except Exception: pass
-        return
-
-    _, team_letter, ipl_code = data.split("_")
-    target_key = "team_A" if team_letter == "A" else "team_B"
-    other_key = "team_B" if team_letter == "A" else "team_A"
-
-    new_ipl_name = IPL_TEAMS.get(ipl_code, f"{ipl_code} 🏏")
-
-    if match[other_key]["name"] == new_ipl_name: return await safe_answer(cq, f"⚠️ {new_ipl_name} is already taken by the opponent team! Pick another franchise.", show_alert=True)
-
-    match[target_key]["name"] = new_ipl_name
-    await safe_answer(cq, f"✅ Team {team_letter} renamed to {new_ipl_name}!", show_alert=False)
-
-    is_standalone = (cq.message.id != match.get("lobby_msg_id") and match.get("lobby_msg_id") is not None)
-    await safe_edit(cq.message, format_ipl_menu_text(match), reply_markup=get_ipl_team_selection_kb(match, standalone=is_standalone))
-
-    if is_standalone and match.get("lobby_msg_id"):
-        try: await client.edit_message_text(chat_id=chat_id, message_id=match["lobby_msg_id"], text=format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-        except Exception: pass
-
-
-@app.on_callback_query(filters.regex(r"^(join_A|join_B|refresh_lobby|leave_lobby|start_game|cancel_game)$"))
-async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
-    chat_id = cq.message.chat.id
-    user = cq.from_user
-    match = matches.get(chat_id)
-
-    if not match or match["status"] != "LOBBY": return await safe_answer(cq, "⚠️ This Lobby is already closed!", show_alert=True)
-
-    data = cq.data
-    b_uname = await get_bot_username(client)
-
-    if data == "refresh_lobby":
-        await safe_answer(cq, "🎨 Button colors shifted!")
-        return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-
-    elif data in ["join_A", "join_B"]:
-        try: await client.send_chat_action(user.id, enums.ChatAction.TYPING)
-        except Exception: return await safe_answer(cq, "❌ Please click 'Activate Bot DM' below and press /start first!", show_alert=True)
-
-        match["team_A"]["players"].pop(user.id, None)
-        match["team_B"]["players"].pop(user.id, None)
-
-        t_key = "team_A" if data == "join_A" else "team_B"
-        match[t_key]["players"][user.id] = user.first_name
-        init_player_stats(match, user.id, user.first_name)
-
-        await safe_answer(cq, f"✅ You joined {match[t_key]['name']}!")
-        await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-
-    elif data == "leave_lobby":
-        rem_a = match["team_A"]["players"].pop(user.id, None)
-        rem_b = match["team_B"]["players"].pop(user.id, None)
-        if rem_a or rem_b:
-            await safe_answer(cq, "👋 You left the lobby!")
-            await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-        else: await safe_answer(cq, "⚠️ You have not joined any team yet!", show_alert=True)
-
-    elif data == "cancel_game":
-        if user.id != match["host"]: return await safe_answer(cq, f"❌ Only the Match Host ({match['host_name']}) can cancel the game!", show_alert=True)
-        cleanup_match(chat_id)
-        await safe_answer(cq, "🛑 Lobby Cancelled!")
-        await safe_edit(cq.message, f"🛑 **Match Lobby was cancelled by the Host ({mention(user.id, user.first_name)}).**")
-
-    elif data == "start_game":
-        if user.id != match["host"]: return await safe_answer(cq, f"❌ Only the Match Host ({match['host_name']}) can start the match!", show_alert=True)
-        if len(match["team_A"]["players"]) < 2 or len(match["team_B"]["players"]) < 2: return await safe_answer(cq, "❌ Minimum 2 players per team required! (At least 2 vs 2)", show_alert=True)
-
-        match["status"] = "TOSS"
-        match["max_wickets"] = min(len(match["team_A"]["players"]), len(match["team_B"]["players"]))
-        cap_a_id = list(match["team_A"]["players"].keys())[0]
-        cap_a_name = match["team_A"]["players"][cap_a_id]
-        match["toss_caller"] = cap_a_id
-
-        await safe_answer(cq, "🪙 Time for the Toss!")
-        await safe_edit(cq.message, f"🪙 **TIME FOR THE TOSS!**\n⚔️ **{match['team_A']['name']}** vs **{match['team_B']['name']}**\n\n🧢 **{match['team_A']['name']} Player ({mention(cap_a_id, cap_a_name)})**, please call Heads or Tails:", reply_markup=get_toss_kb())
-
-
-@app.on_callback_query(filters.regex(r"^toss_(Heads|Tails)$"))
-async def handle_toss_call(client: Client, cq: CallbackQuery):
-    chat_id = cq.message.chat.id
-    match = matches.get(chat_id)
-    if not match or match["status"] != "TOSS": return await safe_answer(cq, "⚠️ The toss is already over!", show_alert=True)
-    if cq.from_user.id != match["toss_caller"]: return await safe_answer(cq, f"❌ Only the designated player can call the toss!", show_alert=True)
-
-    call = cq.data.split("_")[1]
-    result = random.choice(["Heads", "Tails"])
-
-    cap_a_id = list(match["team_A"]["players"].keys())[0]
-    cap_b_id = list(match["team_B"]["players"].keys())[0]
-
-    if call == result:
-        match["toss_winner_team"] = "team_A"
-        match["toss_winner_cap"] = cap_a_id
-        winner_name = match["team_A"]["name"]
-        cap_mention = mention(cap_a_id, match["team_A"]["players"][cap_a_id])
-    else:
-        match["toss_winner_team"] = "team_B"
-        match["toss_winner_cap"] = cap_b_id
-        winner_name = match["team_B"]["name"]
-        cap_mention = mention(cap_b_id, match["team_B"]["players"][cap_b_id])
-
-    await safe_answer(cq, f"Toss Result: {result}!")
-    await safe_edit(cq.message, f"🪙 **Toss Coin Landed On:** `{result}`!\n🎉 **{winner_name}** won the toss!\n\n👑 {cap_mention}, choose whether to Bat or Bowl first:", reply_markup=get_toss_decision_kb())
-
-
-@app.on_callback_query(filters.regex(r"^decide_(bat|bowl)$"))
-async def handle_toss_decision(client: Client, cq: CallbackQuery):
-    chat_id = cq.message.chat.id
-    match = matches.get(chat_id)
-    if not match or match["status"] != "TOSS": return await safe_answer(cq, "⚠️ Decision has already been made!", show_alert=True)
-    if cq.from_user.id != match["toss_winner_cap"]: return await safe_answer(cq, "❌ Only the Toss-Winning side can make this choice!", show_alert=True)
-
-    choice = cq.data.split("_")[1]
-    win_team = match["toss_winner_team"]
-    lose_team = "team_B" if win_team == "team_A" else "team_A"
-
-    match["bat_team"] = win_team if choice == "bat" else lose_team
-    match["bowl_team"] = lose_team if choice == "bat" else win_team
-    match["status"] = "LIVE"
-    match["striker"], match["bowler"] = None, None
-
-    await safe_answer(cq, "🔥 Match Started!")
-    await safe_edit(cq.message, f"🔥 **MATCH STARTED! ({match.get('overs_limit', 6)} Overs | Max Wickets: {match['max_wickets']})**\n━━━━━━━━━━━━━━━━━━━━━━\n👑 **Match Host:** {mention(match['host'], match['host_name'])}\n🏏 **Batting:** {match[match['bat_team']]['name']}\n🎳 **Bowling:** {match[match['bowl_team']]['name']}\n")
-
-    await prompt_host_player_selection(client, chat_id, need_bat=True, need_bowl=True)
-
-
-async def prompt_host_player_selection(client: Client, chat_id: int, need_bat: bool, need_bowl: bool):
-    match = matches.get(chat_id)
-    if not match or match["status"] != "LIVE": return
-    match["state"] = "HOST_SELECTING"
-
-    host_id = match["host"]
-    kb = get_host_player_select_kb(match, need_bat, need_bowl)
-    b_uname = await get_bot_username(client)
-
-    dm_btn = InlineKeyboardMarkup([[c_btn("👑 Host: Go to DM to Select", url=f"https://t.me/{b_uname}")]])
-    await client.send_message(chat_id, f"⏳ **Match Host ({match['host_name']}) is assigning the active players in the Bot DM...**", reply_markup=dm_btn)
-
-    try:
-        await client.send_message(host_id, f"👑 **Match:** {match['team_A']['name']} vs {match['team_B']['name']}\n👉 Please assign the active players for this phase!", reply_markup=kb)
-    except RPCError:
-        await client.send_message(chat_id, f"⚠️ {mention(host_id, match['host_name'])} hasn't started the Bot DM! Please start the bot.")
-
-
-@app.on_callback_query(filters.regex(r"^hostsel_(bat|bowl)_(\d+)$"))
-async def handle_host_selection(client: Client, cq: CallbackQuery):
-    host_id = cq.from_user.id
-    chat_id = host_active_matches.get(host_id)
-    
-    match = matches.get(chat_id) if chat_id else None
-    if not match or match.get("state") != "HOST_SELECTING": 
-        return await safe_answer(cq, "⚠️ No active selection needed!", show_alert=True)
-    
-    if host_id != match["host"]: 
-        return await safe_answer(cq, "❌ Only the Match Host can select active players!", show_alert=True)
-        
-    role = cq.data.split("_")[1]
-    uid = int(cq.data.split("_")[2])
-    
-    if role == "bat":
-        match["striker"] = uid
-        await safe_answer(cq, "🏏 Striker Assigned!")
-    else:
-        match["bowler"] = uid
-        await safe_answer(cq, "🎳 Bowler Assigned!")
-        
-    need_bat = match["striker"] is None
-    need_bowl = match["bowler"] is None
-    
-    if need_bat or need_bowl:
-        kb = get_host_player_select_kb(match, need_bat, need_bowl)
-        await safe_edit(cq.message, cq.message.text.markdown, reply_markup=kb)
-    else:
-        await safe_edit(cq.message, "✅ **Players Assigned Successfully!**\n👉 Head back to the group.")
-        await client.send_message(chat_id, "✅ **Host has assigned the players!**")
-        await prompt_bowler_dm(client, chat_id)
-
-
-async def prompt_bowler_dm(client: Client, chat_id: int):
-    match = matches.get(chat_id)
-    if not match or match["status"] != "LIVE": return
-
-    bowler_id, striker_id = match["bowler"], match["striker"]
-    bat_dict, bowl_dict = match[match["bat_team"]], match[match["bowl_team"]]
-
-    bowler_m = mention(bowler_id, bowl_dict["players"][bowler_id])
-    striker_m = mention(striker_id, bat_dict["players"][striker_id])
-
-    over_num = f"{bat_dict['balls']//6}.{bat_dict['balls']%6 + 1}"
-    match["state"] = "WAIT_BOWLER"
-    active_bowlers[bowler_id] = chat_id
-
-    b_uname = await get_bot_username(client)
-    dm_btn = InlineKeyboardMarkup([[c_btn("🎳 Go to Bot DM (Bowler)", url=f"https://t.me/{b_uname}")]])
-
-    await client.send_message(
-        chat_id,
-        f"⏳ **Delivery {over_num}** ({bat_dict['name']} vs {bowl_dict['name']})\n"
-        f"🏏 **Striker:** {striker_m}\n"
-        f"🎳 **Bowler:** {bowler_m} is selecting a delivery in the Bot's DM...",
-        reply_markup=dm_btn,
-    )
-
-    try:
-        await client.send_message(
-            bowler_id,
-            f"🎳 **YOUR TURN TO BOWL! (Ball {over_num})**\n"
-            f"🏟️ **Match:** {bat_dict['name']} vs {bowl_dict['name']}\n"
-            f"👤 **Facing Striker:** {striker_m}\n"
-            f"🎨 *Select your secret delivery number (1 to 6):*",
-            reply_markup=get_bowler_numbers_kb("bowl"),
-        )
-    except RPCError:
-        await client.send_message(chat_id, f"⚠️ {bowler_m} has blocked or not started the Bot DM!")
-
-
-@app.on_callback_query(filters.regex(r"^bowl_([1-6])$"))
-async def handle_bowler_dm(client: Client, cq: CallbackQuery):
-    bowler_id = cq.from_user.id
-    if bowler_id not in active_bowlers: return await safe_answer(cq, "⚠️ It is not your turn to bowl right now!", show_alert=True)
-
-    chat_id = active_bowlers.pop(bowler_id)
-    match = matches.get(chat_id)
-    if not match or match["state"] != "WAIT_BOWLER": return await safe_answer(cq, "⚠️ This delivery has already expired!", show_alert=True)
-
-    ball_val = int(cq.data.split("_")[1])
-    match["current_ball"] = ball_val
-    match["state"] = "WAIT_BATSMAN"
-
-    await safe_answer(cq, f"🎳 You bowled {ball_val}!")
-    await safe_edit(cq.message, f"✅ **Ball Delivered!** You bowled `{ball_val}`.\n👉 Head back to the Group to see the Batsman's shot!", reply_markup=InlineKeyboardMarkup([[c_btn(f"✅ Delivered Ball: {ball_val}", "noop")]]))
-
-    striker_id = match["striker"]
-    striker_m = mention(striker_id, match[match["bat_team"]]["players"][striker_id])
-    bowler_m = mention(bowler_id, match[match["bowl_team"]]["players"][bowler_id])
-    over_num = f"{match[match['bat_team']]['balls']//6}.{match[match['bat_team']]['balls']%6 + 1}"
-
-    await client.send_message(
-        chat_id,
-        f"🏏 **Delivery {over_num} is Ready!** (Bowled by {bowler_m})\n"
-        f"🔥 {striker_m}, play your shot right here in the Group (0-6):",
-        reply_markup=get_batsman_numbers_kb("bat"),
-    )
-
-
-@app.on_callback_query(filters.regex(r"^bat_([0-6])$"))
-async def handle_batsman_group(client: Client, cq: CallbackQuery):
-    chat_id = cq.message.chat.id
-    match = matches.get(chat_id)
-
-    if not match or match["state"] != "WAIT_BATSMAN": return await safe_answer(cq, "⚠️ This ball has already been played!", show_alert=True)
-    if cq.from_user.id != match["striker"]: return await safe_answer(cq, "❌ You are not the current Striker!", show_alert=True)
-
     match["state"] = "PROCESSING"
-
-    bat_val = int(cq.data.split("_")[1])
-    bowl_val = match["current_ball"]
-    bat_dict, bowl_dict = match[match["bat_team"]], match[match["bowl_team"]]
-
-    striker_id, bowler_id = match["striker"], match["bowler"]
-    striker_m = mention(striker_id, bat_dict["players"][striker_id])
-    bowler_m = mention(bowler_id, bowl_dict["players"][bowler_id])
-
-    bat_dict["balls"] += 1
-    match["stats"][striker_id]["balls_faced"] += 1
-    match["stats"][bowler_id]["balls_bowled"] += 1
-    overs_str = f"{bat_dict['balls']//6}.{bat_dict['balls']%6}"
     
-    is_wicket = bat_val == bowl_val
+    if state_type == "WAIT_BOWLER":
+        await client.send_message(chat_id, f"⚠️ **TIMEOUT!** {m_name} didn't bowl in 60s!\n👉 **+6 Runs Penalty** given to {match[match['bat_team']]['name']}!")
+        # Bowler Timeout: Add 6 runs, 1 ball, no wickets
+        bat_dict = match[match["bat_team"]]
+        bat_dict["score"] += 6
+        bat_dict["balls"] += 1
+        match["stats"][match["bowler"]]["runs_conceded"] += 6
+        match["stats"][match["bowler"]]["balls_bowled"] += 1
+        match["stats"][match["striker"]]["balls_faced"] += 1
+        match["consecutive_wickets"] = 0
+        await evaluate_and_continue(client, chat_id, match, is_wicket=False)
 
-    if is_wicket:
+    elif state_type == "WAIT_BATSMAN":
+        await client.send_message(chat_id, f"⚠️ **TIMEOUT!** {m_name} took too long!\n👉 **WICKET (Timed Out)!**")
+        # Batsman Timeout: Wicket
+        bat_dict, bowl_dict = match[match["bat_team"]], match[match["bowl_team"]]
+        striker_id, bowler_id = match["striker"], match["bowler"]
+        
         bat_dict["wickets"] += 1
+        bat_dict["balls"] += 1
         match["out_players"].append(striker_id)
         match["all_out_history"].add(striker_id)
         match["stats"][bowler_id]["wickets"] += 1
-        s_runs, s_balls = match["stats"][striker_id]["runs"], match["stats"][striker_id]["balls_faced"]
-        
-        # FEATURE: HATTRICK TRACKER
+        match["stats"][bowler_id]["balls_bowled"] += 1
+        match["stats"][striker_id]["balls_faced"] += 1
         match["consecutive_wickets"] += 1
+        await evaluate_and_continue(client, chat_id, match, is_wicket=True)
 
-        if match["consecutive_wickets"] == 3:
-            await safe_answer(cq, "🔥 HAT-TRICK WICKET!!", show_alert=True)
-            action_header = f"🔥 **HAT-TRICK WICKET!!** 🎩☝️☝️☝️\n🎳 **Bowler ({bowler_m}) takes 3 IN A ROW!**\n🏏 **Batsman ({striker_m}):** `{bat_val}`\n🚶 {striker_m} departs for `{s_runs} ({s_balls})`!"
-            badge_btn = c_btn("🎩 HAT-TRICK!", "noop", color="red")
-            asyncio.create_task(send_event_gif(client, chat_id, "HATTRICK", f"🔥 **HAT-TRICK WICKET!!** 🎩☝️\n🎳 {bowler_m} is ON FIRE!"))
-            match["consecutive_wickets"] = 0 # Reset after hat-trick
-        else:
-            await safe_answer(cq, "💥 OUT! Wicket!", show_alert=True)
-            action_header = f"💥 **HOWZAT!! WICKET!** ☝️\n🏏 **Batsman ({striker_m}):** `{bat_val}`\n🚶 {striker_m} departs for `{s_runs} ({s_balls})`!"
-            badge_btn = c_btn("💥 WICKET!", "noop", color="red")
-            asyncio.create_task(send_event_gif(client, chat_id, "WICKET", f"💥 **WICKET!! ({bat_dict['name']})** ☝️\n🎳 {bowler_m} dismisses 🏏 {striker_m} for `{s_runs} ({s_balls})`!"))
-    else:
-        match["consecutive_wickets"] = 0 # Reset on run/dot ball
-        
-        bat_dict["score"] += bat_val
-        match["stats"][striker_id]["runs"] += bat_val
-        match["stats"][bowler_id]["runs_conceded"] += bat_val
-        s_runs = match["stats"][striker_id]["runs"]
+    elif state_type == "HOST_SELECTING":
+        await client.send_message(chat_id, f"⚠️ **Host is taking too long!** {m_name}, please select the players ASAP to continue the game!")
+        match["state"] = "HOST_SELECTING" # Keep waiting
 
-        if bat_val == 0: shot_tag = "🛡️ **DEFENDED! DOT BALL!**"
-        elif bat_val == 4:
-            match["stats"][striker_id]["fours"] += 1
-            shot_tag = "🔵 **CRACKING FOUR!**"
-            asyncio.create_task(send_event_gif(client, chat_id, 4, f"🔵 **CRACKING FOUR!! ({bat_dict['name']})**\n🏏 {striker_m} smashes `4` runs off 🎳 {bowler_m}! (`{s_runs}*`)"))
-        elif bat_val == 6:
-            match["stats"][striker_id]["sixes"] += 1
-            shot_tag = "🟢 **MASSIVE SIXER!!**"
-            asyncio.create_task(send_event_gif(client, chat_id, 6, f"🟢 **KING KOHLI STYLE SIXER!! ({bat_dict['name']})** 🚀\n🏏 {striker_m} launches `6` runs off 🎳 {bowler_m}! (`{s_runs}*`)"))
-        else: shot_tag = f"🏃 **{bat_val} RUNS!**"
 
-        await safe_answer(cq, f"🏏 {bat_val} Runs!")
-        action_header = f"{shot_tag}\n🏏 **Batsman ({striker_m}):** `{bat_val}`"
-        badge_btn = c_btn(f"🏏 +{bat_val} RUNS (Score: {bat_dict['score']}/{bat_dict['wickets']})", callback_data="noop", color=next_random_color())
-
-    target_line = f" | 🎯 **Target:** `{match['target']}`" if match["target"] else ""
-    board_footer = f"\n━━━━━━━━━━━━━━━━━━━━━━\n📊 **{bat_dict['name']}:** `{bat_dict['score']}/{bat_dict['wickets']}` ({overs_str} / {match.get('overs_limit', 6)}.0 Overs){target_line}"
+async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wicket: bool):
+    """Handles end of ball logic, checks for innings break/match over, and routes to next action."""
+    bat_dict = match[match["bat_team"]]
+    bowl_dict = match[match["bowl_team"]]
     
-    await safe_edit(cq.message, action_header + board_footer, reply_markup=InlineKeyboardMarkup([[badge_btn]]))
-
     target_chased = match["target"] is not None and bat_dict["score"] >= match["target"]
     all_out = bat_dict["wickets"] >= match["max_wickets"]
     overs_done = bat_dict["balls"] >= match["max_balls"]
@@ -1044,7 +370,6 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
 
             summary = build_match_summary(match, result_msg, win_key, lose_key)
             end_kb = InlineKeyboardMarkup([[c_btn("🏆 Match Completed", "noop")]])
-
             try:
                 poster_bio = generate_winner_scorecard_image(match, win_key, lose_key, result_msg.replace("*", ""))
                 cleanup_match(chat_id)
@@ -1064,35 +389,415 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
         if need_bowl:
             match["bowler"] = None
             await client.send_message(chat_id, f"📣 **End of Over {bat_dict['balls']//6}!**\n")
-        await asyncio.sleep(1)
+        
+        await asyncio.sleep(1) # Added small pause before Host DM Prompt
         await prompt_host_player_selection(client, chat_id, need_bat, need_bowl)
     else:
         await asyncio.sleep(1)
         await prompt_bowler_dm(client, chat_id)
 
 
+# ================= BOT COMMANDS =================
+@app.on_message(filters.command("start") & filters.private)
+async def start_private(client: Client, message: Message):
+    b_uname = await get_bot_username(client)
+    
+    # ADD TO GROUP BUTTON
+    kb = InlineKeyboardMarkup([
+        [c_btn("➕ Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")],
+        [c_btn("🎨 Test Dynamic Color!", "dm_color_test", color=next_random_color())]
+    ])
+    owner_note = "\n\n👑 **Owner Mode Active:** Send any GIF here in DM to set custom **SIX, FOUR, WICKET, HATTRICK, or WIN** GIFs!" if message.from_user.id == OWNER_ID else ""
+    
+    explanation = (
+        "🏏 **IPL MULTIPLAYER CRICKET BOT** 🏏\n\n"
+        "**Epdi Work Aagum? (How it works):**\n"
+        "1️⃣ First, add this bot to your telegram group.\n"
+        "2️⃣ Group la `/cricket` nu send pannunga. Host Overs select pannadhum Lobby open aagum.\n"
+        "3️⃣ Group la ulla yaru venaalum Join pannikalam. (Aana ellarum DM la vandhu `/start` kuduthurukkanum).\n"
+        "4️⃣ Match start aanadhum, **Match Host** thaan Batsman & Bowler-a select pannuvaaru.\n"
+        "5️⃣ **Bowling:** Bowler-ku Private DM-la 1-6 numbers varum. Adhula thevaiyana number-a click pannanum.\n"
+        "6️⃣ **Batting:** Group-la Batsman-ku 0-6 numbers varum. Batsman click panna udane result varum!\n"
+        "   💥 *Rendu perum same number select panna = WICKET!*\n"
+        "   🏏 *Different number na = RUNS/DOT BALL!*\n"
+    )
+
+    await message.reply(f"👋 **Hello {mention(message.from_user.id, message.from_user.first_name)}!**\n\n{explanation}{owner_note}", reply_markup=kb)
+
+
+@app.on_message(filters.animation & filters.private)
+async def handle_custom_gif_upload(client: Client, message: Message):
+    if message.from_user.id != OWNER_ID: return await message.reply("❌ **Access Denied!**")
+    fid = message.animation.file_id
+    pending_gif_save[message.from_user.id] = fid
+    kb = InlineKeyboardMarkup([
+        [c_btn("🟢 Save as SIX (6) GIF", "savegif_6", color="green"), c_btn("💥 Save as WICKET GIF", "savegif_WICKET", color="red")],
+        [c_btn("🎩 Save as HAT-TRICK GIF", "savegif_HATTRICK", color="blue"), c_btn("🔵 Save as FOUR (4) GIF", "savegif_4", color="blue")],
+        [c_btn("🏆 Save as WIN GIF", "savegif_WIN"), c_btn("🗑️ Clear All Saved GIFs", "savegif_CLEAR", color="red")]
+    ])
+    await message.reply("🎬 **Owner GIF Manager:**\nWhere should this GIF be used during live matches?", reply_markup=kb)
+
+
+@app.on_callback_query(filters.regex(r"^savegif_(6|4|WICKET|WIN|HATTRICK|CLEAR)$"))
+async def handle_save_gif_callback(client: Client, cq: CallbackQuery):
+    if cq.from_user.id != OWNER_ID: return await safe_answer(cq, "❌ Only the Bot Owner can do this!", show_alert=True)
+    uid, choice = cq.from_user.id, cq.data.split("_")[1]
+    if choice == "CLEAR":
+        for k in CUSTOM_GIFS: CUSTOM_GIFS[k].clear()
+        return await safe_edit(cq.message, "🗑️ **All custom GIFs cleared! Bot will now use Live Tenor Cricket GIFs.**")
+    
+    fid = pending_gif_save.get(uid)
+    if not fid: return await safe_answer(cq, "⚠️ Please send the GIF again!", show_alert=True)
+    
+    key = int(choice) if choice in ["4", "6"] else choice
+    CUSTOM_GIFS[key].append(fid)
+    await safe_answer(cq, f"✅ Saved as {choice} GIF!", show_alert=True)
+    await safe_edit(cq.message, f"✅ **Success!** This GIF will now appear whenever a **{choice}** happens in the match!", reply_markup=InlineKeyboardMarkup([[c_btn(f"✅ Saved for {choice}", "noop")]]))
+
+
+@app.on_callback_query(filters.regex(r"^dm_color_test$"))
+async def test_dm_color_change(client: Client, cq: CallbackQuery):
+    new_color = next_random_color()
+    await safe_answer(cq, f"Color shifted to {new_color.upper()}!")
+    await safe_edit(cq.message, cq.message.text.markdown, reply_markup=InlineKeyboardMarkup([[c_btn(f"🎨 Color Changed! ({new_color.upper()})", "dm_color_test", color=new_color)]]))
+
+
+@app.on_message(filters.command("cricket") & filters.group)
+async def create_lobby(client: Client, message: Message):
+    chat_id = message.chat.id
+    if chat_id in matches:
+        m = matches[chat_id]
+        return await message.reply(f"⚠️ **A match is already active in this group!**\n👑 Only Match Host ({mention(m['host'], m['host_name'])}) can end it.")
+
+    matches[chat_id] = {"host": message.from_user.id, "host_name": message.from_user.first_name, "status": "SELECT_OVERS"}
+    await message.reply(f"👑 **Match Host: {message.from_user.first_name}**\n\n👉 **Host**, please select the number of overs for this match to open the lobby:", reply_markup=get_overs_kb())
+
+
+@app.on_callback_query(filters.regex(r"^setovers_(\d+)$"))
+async def setup_lobby_after_overs(client: Client, cq: CallbackQuery):
+    chat_id = cq.message.chat.id
+    match = matches.get(chat_id)
+    if not match or match.get("status") != "SELECT_OVERS": return await safe_answer(cq, "⚠️ Session Expired!", show_alert=True)
+    if cq.from_user.id != match["host"]: return await safe_answer(cq, "❌ Only the Match Host can select overs!", show_alert=True)
+
+    overs = int(cq.data.split("_")[1])
+    match.update({
+        "status": "LOBBY", "overs_limit": overs, "max_balls": overs * 6, "innings": 1, "target": None, "max_wickets": 2,
+        "team_A": {"name": "Team A 🔵", "players": {}, "score": 0, "wickets": 0, "balls": 0},
+        "team_B": {"name": "Team B 🔴", "players": {}, "score": 0, "wickets": 0, "balls": 0},
+        "bat_team": None, "bowl_team": None, "striker": None, "bowler": None,
+        "out_players": [], "all_out_history": set(), "current_ball": None, "state": None, "stats": {}, "lobby_msg_id": None,
+        "consecutive_wickets": 0, "turn_id": 0 # FOR TIMERS & HATTRICK
+    })
+
+    host_active_matches[cq.from_user.id] = chat_id
+    b_uname = await get_bot_username(client)
+    await safe_answer(cq, f"✅ Selected {overs} Overs!")
+    sent = await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+    if isinstance(sent, Message): match["lobby_msg_id"] = sent.id
+
+
+@app.on_message(filters.command("setteam") & filters.group)
+async def setteam_command(client: Client, message: Message):
+    chat_id = message.chat.id
+    match = matches.get(chat_id)
+    if not match: return await message.reply("❌ **No active match lobby found!** Send `/cricket` first.")
+    if match["status"] != "LOBBY": return await message.reply("⚠️ **Team names can only be changed while in the Match Lobby!**")
+    if message.from_user.id != match["host"]: return await message.reply("❌ **Only the Match Host can change IPL team names!**")
+    await message.reply(format_ipl_menu_text(match), reply_markup=get_ipl_team_selection_kb(match, standalone=True))
+
+
+@app.on_message(filters.command("endcricket") & filters.group)
+async def force_end_match(client: Client, message: Message):
+    chat_id = message.chat.id
+    match = matches.get(chat_id)
+    if not match: return await message.reply("❌ **There is no active match in this group!**")
+    if message.from_user.id != match["host"]: return await message.reply("❌ **Access Denied!**")
+    cleanup_match(chat_id)
+    await message.reply(f"🛑 **Match has been ended by the Host ({mention(message.from_user.id, message.from_user.first_name)})!**")
+
+
+@app.on_callback_query(filters.regex(r"^(open_ipl_menu|back_to_lobby|close_setteam|setipl_(A|B)_([A-Z]+))$"))
+async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
+    chat_id, user, match = cq.message.chat.id, cq.from_user, matches.get(cq.message.chat.id)
+    if not match or match["status"] != "LOBBY": return await safe_answer(cq, "⚠ Lobby is closed!", show_alert=True)
+    if cq.data != "back_to_lobby" and user.id != match["host"]: return await safe_answer(cq, "❌ Only the Match Host can change names!", show_alert=True)
+
+    b_uname, data = await get_bot_username(client), cq.data
+    if data == "open_ipl_menu": return await safe_edit(cq.message, format_ipl_menu_text(match), reply_markup=get_ipl_team_selection_kb(match, False))
+    elif data == "back_to_lobby": return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+    elif data == "close_setteam":
+        try: await cq.message.delete()
+        except: pass
+        return
+
+    _, team_letter, ipl_code = data.split("_")
+    target_key, other_key = f"team_{team_letter}", "team_B" if team_letter == "A" else "team_A"
+    new_ipl_name = IPL_TEAMS.get(ipl_code, f"{ipl_code} 🏏")
+
+    if match[other_key]["name"] == new_ipl_name: return await safe_answer(cq, f"⚠️ {new_ipl_name} is already taken!", show_alert=True)
+
+    match[target_key]["name"] = new_ipl_name
+    await safe_answer(cq, f"✅ Team renamed to {new_ipl_name}!")
+    
+    is_standalone = (cq.message.id != match.get("lobby_msg_id") and match.get("lobby_msg_id") is not None)
+    await safe_edit(cq.message, format_ipl_menu_text(match), reply_markup=get_ipl_team_selection_kb(match, is_standalone))
+
+    if is_standalone and match.get("lobby_msg_id"):
+        try: await client.edit_message_text(chat_id, match["lobby_msg_id"], text=format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+        except: pass
+
+
+@app.on_callback_query(filters.regex(r"^(join_A|join_B|refresh_lobby|leave_lobby|start_game|cancel_game)$"))
+async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
+    chat_id, user, match = cq.message.chat.id, cq.from_user, matches.get(cq.message.chat.id)
+    if not match or match["status"] != "LOBBY": return await safe_answer(cq, "⚠️ Lobby is closed!", show_alert=True)
+
+    b_uname, data = await get_bot_username(client), cq.data
+
+    if data == "refresh_lobby": return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+    elif data in ["join_A", "join_B"]:
+        try: await client.send_chat_action(user.id, enums.ChatAction.TYPING)
+        except Exception: return await safe_answer(cq, "❌ Please click 'Activate Bot DM' below and press /start first!", show_alert=True)
+
+        match["team_A"]["players"].pop(user.id, None)
+        match["team_B"]["players"].pop(user.id, None)
+        t_key = "team_A" if data == "join_A" else "team_B"
+        match[t_key]["players"][user.id] = user.first_name
+        init_player_stats(match, user.id, user.first_name)
+        await safe_answer(cq, f"✅ You joined {match[t_key]['name']}!")
+        await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+
+    elif data == "leave_lobby":
+        rem = match["team_A"]["players"].pop(user.id, None) or match["team_B"]["players"].pop(user.id, None)
+        if rem: await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+        else: await safe_answer(cq, "⚠️ You have not joined any team yet!", show_alert=True)
+
+    elif data == "cancel_game":
+        if user.id != match["host"]: return await safe_answer(cq, "❌ Only Match Host can cancel!", show_alert=True)
+        cleanup_match(chat_id)
+        await safe_edit(cq.message, f"🛑 **Match Lobby cancelled by Host ({mention(user.id, user.first_name)}).**")
+
+    elif data == "start_game":
+        if user.id != match["host"]: return await safe_answer(cq, "❌ Only Match Host can start!", show_alert=True)
+        if len(match["team_A"]["players"]) < 1 or len(match["team_B"]["players"]) < 1: return await safe_answer(cq, "❌ Minimum 1 player per team required!", show_alert=True)
+
+        match["status"] = "TOSS"
+        match["max_wickets"] = min(len(match["team_A"]["players"]), len(match["team_B"]["players"]))
+        cap_a_id = list(match["team_A"]["players"].keys())[0]
+        match["toss_caller"] = cap_a_id
+
+        await safe_answer(cq, "🪙 Time for Toss!")
+        await safe_edit(cq.message, f"🪙 **TIME FOR THE TOSS!**\n⚔️ **{match['team_A']['name']}** vs **{match['team_B']['name']}**\n\n🧢 **Team 1 Player ({mention(cap_a_id, match['team_A']['players'][cap_a_id])})**, please call Heads or Tails:", reply_markup=get_toss_kb())
+
+
+@app.on_callback_query(filters.regex(r"^toss_(Heads|Tails)$"))
+async def handle_toss_call(client: Client, cq: CallbackQuery):
+    chat_id, match = cq.message.chat.id, matches.get(cq.message.chat.id)
+    if not match or match["status"] != "TOSS": return
+    if cq.from_user.id != match["toss_caller"]: return await safe_answer(cq, "❌ Only designated player can call toss!", show_alert=True)
+
+    call, result = cq.data.split("_")[1], random.choice(["Heads", "Tails"])
+    win_t_key = "team_A" if call == result else "team_B"
+    match["toss_winner_team"] = win_t_key
+    match["toss_winner_cap"] = list(match[win_t_key]["players"].keys())[0]
+
+    win_name, cap_m = match[win_t_key]["name"], mention(match["toss_winner_cap"], match[win_t_key]["players"][match["toss_winner_cap"]])
+    await safe_answer(cq, f"Toss Result: {result}!")
+    await safe_edit(cq.message, f"🪙 **Toss Coin Landed On:** `{result}`!\n🎉 **{win_name}** won the toss!\n\n👑 {cap_m}, choose Bat or Bowl:", reply_markup=get_toss_decision_kb())
+
+
+@app.on_callback_query(filters.regex(r"^decide_(bat|bowl)$"))
+async def handle_toss_decision(client: Client, cq: CallbackQuery):
+    chat_id, match = cq.message.chat.id, matches.get(cq.message.chat.id)
+    if not match or match["status"] != "TOSS": return
+    if cq.from_user.id != match["toss_winner_cap"]: return await safe_answer(cq, "❌ Only Toss-Winning side can choose!", show_alert=True)
+
+    choice = cq.data.split("_")[1]
+    win_team, lose_team = match["toss_winner_team"], "team_B" if match["toss_winner_team"] == "team_A" else "team_A"
+
+    match["bat_team"] = win_team if choice == "bat" else lose_team
+    match["bowl_team"] = lose_team if choice == "bat" else win_team
+    match["status"], match["striker"], match["bowler"] = "LIVE", None, None
+
+    await safe_answer(cq, "🔥 Match Started!")
+    await safe_edit(cq.message, f"🔥 **MATCH STARTED! ({match.get('overs_limit', 6)} Overs | Max Wickets: {match['max_wickets']})**\n━━━━━━━━━━━━━━━━━━━━━━\n👑 **Match Host:** {mention(match['host'], match['host_name'])}\n🏏 **Batting:** {match[match['bat_team']]['name']}\n🎳 **Bowling:** {match[match['bowl_team']]['name']}\n")
+    
+    await prompt_host_player_selection(client, chat_id, need_bat=True, need_bowl=True)
+
+
+# ================= HOST SELECTS PLAYERS IN DM =================
+async def prompt_host_player_selection(client: Client, chat_id: int, need_bat: bool, need_bowl: bool):
+    match = matches.get(chat_id)
+    if not match or match["status"] != "LIVE": return
+    match["state"] = "HOST_SELECTING"
+    match["turn_id"] += 1
+
+    host_id, b_uname = match["host"], await get_bot_username(client)
+    kb = get_host_player_select_kb(match, need_bat, need_bowl)
+
+    await client.send_message(chat_id, f"⏳ **Match Host ({match['host_name']}) is assigning the active players in the Bot DM...**", reply_markup=InlineKeyboardMarkup([[c_btn("👑 Host: Go to DM to Select", url=f"https://t.me/{b_uname}")]]))
+
+    try: await client.send_message(host_id, f"👑 **Match:** {match['team_A']['name']} vs {match['team_B']['name']}\n👉 Please assign the active players for this phase!", reply_markup=kb)
+    except RPCError: await client.send_message(chat_id, f"⚠️ {mention(host_id, match['host_name'])} hasn't started the Bot DM! Please start the bot.")
+    
+    # 60s HOST TIMER
+    asyncio.create_task(match_timer_task(client, chat_id, "HOST_SELECTING", match["turn_id"]))
+
+
+@app.on_callback_query(filters.regex(r"^hostsel_(bat|bowl)_(\d+)$"))
+async def handle_host_selection(client: Client, cq: CallbackQuery):
+    host_id, chat_id = cq.from_user.id, host_active_matches.get(cq.from_user.id)
+    match = matches.get(chat_id) if chat_id else None
+    if not match or match.get("state") != "HOST_SELECTING" or host_id != match["host"]: 
+        return await safe_answer(cq, "❌ Cannot select right now!", show_alert=True)
+        
+    role, uid = cq.data.split("_")[1], int(cq.data.split("_")[2])
+    match["striker" if role == "bat" else "bowler"] = uid
+    await safe_answer(cq, f"{'🏏 Striker' if role=='bat' else '🎳 Bowler'} Assigned!")
+        
+    need_bat, need_bowl = match["striker"] is None, match["bowler"] is None
+    if need_bat or need_bowl: await safe_edit(cq.message, cq.message.text.markdown, reply_markup=get_host_player_select_kb(match, need_bat, need_bowl))
+    else:
+        await safe_edit(cq.message, "✅ **Players Assigned Successfully!**\n👉 Head back to the group.")
+        # REMOVED EXTRA GROUP MESSAGE HERE
+        await prompt_bowler_dm(client, chat_id)
+
+
+# ================= GAMEPLAY: DM BOWLING & GROUP BATTING =================
+async def prompt_bowler_dm(client: Client, chat_id: int):
+    match = matches.get(chat_id)
+    if not match or match["status"] != "LIVE": return
+
+    bowler_id, striker_id = match["bowler"], match["striker"]
+    bat_dict, bowl_dict = match[match["bat_team"]], match[match["bowl_team"]]
+    bowler_m, striker_m = mention(bowler_id, bowl_dict["players"][bowler_id]), mention(striker_id, bat_dict["players"][striker_id])
+    over_num = f"{bat_dict['balls']//6}.{bat_dict['balls']%6 + 1}"
+    
+    match["state"] = "WAIT_BOWLER"
+    match["turn_id"] += 1
+    active_bowlers[bowler_id] = chat_id
+
+    await client.send_message(chat_id, f"⏳ **Delivery {over_num}** ({bat_dict['name']} vs {bowl_dict['name']})\n🏏 **Striker:** {striker_m}\n🎳 **Bowler:** {bowler_m} is selecting a delivery in the Bot's DM...", reply_markup=InlineKeyboardMarkup([[c_btn("🎳 Go to Bot DM (Bowler)", url=f"https://t.me/{await get_bot_username(client)}")]]))
+
+    try: await client.send_message(bowler_id, f"🎳 **YOUR TURN TO BOWL! (Ball {over_num})**\n🏟️ **Match:** {bat_dict['name']} vs {bowl_dict['name']}\n👤 **Facing Striker:** {striker_m}\n🎨 *Select your secret delivery number (1 to 6):*", reply_markup=get_bowler_numbers_kb("bowl"))
+    except RPCError: await client.send_message(chat_id, f"⚠️ {bowler_m} has blocked or not started the Bot DM!")
+    
+    # 60s BOWLER TIMER
+    asyncio.create_task(match_timer_task(client, chat_id, "WAIT_BOWLER", match["turn_id"]))
+
+
+@app.on_callback_query(filters.regex(r"^bowl_([1-6])$"))
+async def handle_bowler_dm(client: Client, cq: CallbackQuery):
+    bowler_id = cq.from_user.id
+    if bowler_id not in active_bowlers: return await safe_answer(cq, "⚠️ It is not your turn to bowl right now!", show_alert=True)
+
+    chat_id = active_bowlers.pop(bowler_id)
+    match = matches.get(chat_id)
+    if not match or match["state"] != "WAIT_BOWLER": return await safe_answer(cq, "⚠️ This delivery has already expired!", show_alert=True)
+
+    ball_val = int(cq.data.split("_")[1])
+    match["current_ball"] = ball_val
+    match["state"] = "WAIT_BATSMAN"
+    match["turn_id"] += 1
+
+    await safe_answer(cq, f"🎳 You bowled {ball_val}!")
+    await safe_edit(cq.message, f"✅ **Ball Delivered!** You bowled `{ball_val}`.\n👉 Head back to the Group to see the Batsman's shot!", reply_markup=InlineKeyboardMarkup([[c_btn(f"✅ Delivered Ball: {ball_val}", "noop")]]))
+
+    striker_id, bat_dict = match["striker"], match[match["bat_team"]]
+    striker_m = mention(striker_id, bat_dict["players"][striker_id])
+    bowler_m = mention(bowler_id, match[match["bowl_team"]]["players"][bowler_id])
+    over_num = f"{bat_dict['balls']//6}.{bat_dict['balls']%6 + 1}"
+
+    await client.send_message(chat_id, f"🏏 **Delivery {over_num} is Ready!** (Bowled by {bowler_m})\n🔥 {striker_m}, play your shot right here in the Group (0-6):", reply_markup=get_batsman_numbers_kb("bat"))
+    
+    # 60s BATSMAN TIMER
+    asyncio.create_task(match_timer_task(client, chat_id, "WAIT_BATSMAN", match["turn_id"]))
+
+
+@app.on_callback_query(filters.regex(r"^bat_([0-6])$"))
+async def handle_batsman_group(client: Client, cq: CallbackQuery):
+    chat_id, match = cq.message.chat.id, matches.get(cq.message.chat.id)
+    if not match or match["state"] != "WAIT_BATSMAN": return await safe_answer(cq, "⚠️ This ball has already been played!", show_alert=True)
+    if cq.from_user.id != match["striker"]: return await safe_answer(cq, "❌ You are not the current Striker!", show_alert=True)
+
+    match["state"] = "PROCESSING"
+    bat_val, bowl_val = int(cq.data.split("_")[1]), match["current_ball"]
+    bat_dict, bowl_dict = match[match["bat_team"]], match[match["bowl_team"]]
+    striker_id, bowler_id = match["striker"], match["bowler"]
+    striker_m, bowler_m = mention(striker_id, bat_dict["players"][striker_id]), mention(bowler_id, bowl_dict["players"][bowler_id])
+
+    bat_dict["balls"] += 1
+    match["stats"][striker_id]["balls_faced"] += 1
+    match["stats"][bowler_id]["balls_bowled"] += 1
+    overs_str = f"{bat_dict['balls']//6}.{bat_dict['balls']%6}"
+    
+    is_wicket = bat_val == bowl_val
+    gif_to_play, gif_caption = None, None
+
+    if is_wicket:
+        bat_dict["wickets"] += 1
+        match["out_players"].append(striker_id)
+        match["all_out_history"].add(striker_id)
+        match["stats"][bowler_id]["wickets"] += 1
+        s_runs, s_balls = match["stats"][striker_id]["runs"], match["stats"][striker_id]["balls_faced"]
+        match["consecutive_wickets"] += 1
+
+        if match["consecutive_wickets"] == 3:
+            await safe_answer(cq, "🔥 HAT-TRICK WICKET!!", show_alert=True)
+            action_header = f"🔥 **HAT-TRICK WICKET!!** 🎩☝️☝️☝️\n🎳 **Bowler ({bowler_m}) takes 3 IN A ROW!**\n🏏 **Batsman ({striker_m}):** `{bat_val}`\n🚶 {striker_m} departs for `{s_runs} ({s_balls})`!"
+            gif_to_play, gif_caption = "HATTRICK", f"🔥 **HAT-TRICK WICKET!!** 🎩☝️\n🎳 {bowler_m} is ON FIRE!"
+            match["consecutive_wickets"] = 0
+        else:
+            await safe_answer(cq, "💥 OUT! Wicket!", show_alert=True)
+            action_header = f"💥 **HOWZAT!! WICKET!** ☝️\n🏏 **Batsman ({striker_m}):** `{bat_val}`\n🚶 {striker_m} departs for `{s_runs} ({s_balls})`!"
+            gif_to_play, gif_caption = "WICKET", f"💥 **WICKET!! ({bat_dict['name']})** ☝️\n🎳 {bowler_m} dismisses 🏏 {striker_m} for `{s_runs} ({s_balls})`!"
+    else:
+        match["consecutive_wickets"] = 0 
+        bat_dict["score"] += bat_val
+        match["stats"][striker_id]["runs"] += bat_val
+        match["stats"][bowler_id]["runs_conceded"] += bat_val
+        s_runs = match["stats"][striker_id]["runs"]
+
+        if bat_val == 0: shot_tag = "🛡️ **DEFENDED! DOT BALL!**"
+        elif bat_val == 4:
+            match["stats"][striker_id]["fours"] += 1
+            shot_tag = "🔵 **CRACKING FOUR!**"
+            gif_to_play, gif_caption = 4, f"🔵 **CRACKING FOUR!! ({bat_dict['name']})**\n🏏 {striker_m} smashes `4` runs off 🎳 {bowler_m}! (`{s_runs}*`)"
+        elif bat_val == 6:
+            match["stats"][striker_id]["sixes"] += 1
+            shot_tag = "🟢 **MASSIVE SIXER!!**"
+            gif_to_play, gif_caption = 6, f"🟢 **KING KOHLI STYLE SIXER!! ({bat_dict['name']})** 🚀\n🏏 {striker_m} launches `6` runs off 🎳 {bowler_m}! (`{s_runs}*`)"
+        else: shot_tag = f"🏃 **{bat_val} RUNS!**"
+
+        await safe_answer(cq, f"🏏 {bat_val} Runs!")
+        action_header = f"{shot_tag}\n🏏 **Batsman ({striker_m}):** `{bat_val}`"
+
+    target_line = f" | 🎯 **Target:** `{match['target']}`" if match["target"] else ""
+    board_footer = f"\n━━━━━━━━━━━━━━━━━━━━━━\n📊 **{bat_dict['name']}:** `{bat_dict['score']}/{bat_dict['wickets']}` ({overs_str} / {match.get('overs_limit', 6)}.0 Overs){target_line}"
+    
+    # 1. Update Scoreboard immediately
+    await safe_edit(cq.message, action_header + board_footer, reply_markup=InlineKeyboardMarkup([[c_btn("🏏 MATCH SCORE UPDATED", "noop")]]))
+
+    # 2. Wait for GIF to finish (if any) before triggering next menus
+    if gif_to_play:
+        await send_event_gif(client, chat_id, gif_to_play, gif_caption, auto_delete=12)
+    
+    # 3. Proceed to next phase
+    await evaluate_and_continue(client, chat_id, match, is_wicket)
+
+
 def build_match_summary(match: dict, result_banner: str, win_key: str, lose_key: str) -> str:
     tA, tB = match["team_A"], match["team_B"]
     win_squad_mentions = "Match Tied!" if win_key == lose_key else ", ".join([mention(uid, name) for uid, name in match[win_key]["players"].items()])
-
     stats_list = list(match["stats"].values())
     if stats_list:
         top_bat = max(stats_list, key=lambda x: (x["runs"], -x["balls_faced"]))
         top_bowl = max(stats_list, key=lambda x: (x["wickets"], -x["runs_conceded"]))
         awards_text = f"⭐ **Best Batsman:** {mention(top_bat['id'], top_bat['name'])} — `{top_bat['runs']} ({top_bat['balls_faced']})`\n🔥 **Best Bowler:** {mention(top_bowl['id'], top_bowl['name'])} — `{top_bowl['wickets']}-{top_bowl['runs_conceded']}`"
     else: awards_text = ""
+    return f"🏁 **IPL MATCH COMPLETED!** 🏁\n━━━━━━━━━━━━━━━━━━━━━━\n{result_banner}\n🏅 **Winning Squad:** {win_squad_mentions}\n━━━━━━━━━━━━━━━━━━━━━━\n🛡️ **{tA['name']}:** `{tA['score']}/{tA['wickets']}` ({tA['balls']//6}.{tA['balls']%6} ov)\n⚔️ **{tB['name']}:** `{tB['score']}/{tB['wickets']}` ({tB['balls']//6}.{tB['balls']%6} ov)\n\n{awards_text}"
 
-    return (
-        f"🏁 **IPL MATCH COMPLETED!** 🏁\n━━━━━━━━━━━━━━━━━━━━━━\n{result_banner}\n🏅 **Winning Squad:** {win_squad_mentions}\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🛡️ **{tA['name']}:** `{tA['score']}/{tA['wickets']}` ({tA['balls']//6}.{tA['balls']%6} ov)\n"
-        f"⚔️ **{tB['name']}:** `{tB['score']}/{tB['wickets']}` ({tB['balls']//6}.{tB['balls']%6} ov)\n\n{awards_text}"
-    )
-
-@app.on_callback_query(filters.regex(r"^noop$"))
-async def handle_noop(client: Client, cq: CallbackQuery):
-    kb = InlineKeyboardMarkup([[c_btn(cq.message.reply_markup.inline_keyboard[0][0].text, "noop")]])
-    await safe_answer(cq, "🎨 Color Changed!")
-    await safe_edit(cq.message, cq.message.text.markdown, reply_markup=kb)
 
 if __name__ == "__main__":
     print("🏏 Dynamic Color Kurigram IPL Cricket Bot Starting...")
