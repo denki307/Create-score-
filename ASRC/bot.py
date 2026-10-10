@@ -65,6 +65,13 @@ _click_counter = 0
 
 
 # ================= HELPERS & COLOR BUTTONS =================
+async def get_bot_username(client: Client) -> str:
+    global BOT_USERNAME
+    if not BOT_USERNAME:
+        me = await client.get_me()
+        BOT_USERNAME = me.username
+    return BOT_USERNAME
+
 def mention(user_id: int, name: str) -> str:
     clean_name = str(name).replace("[", "").replace("]", "").replace("*", "").strip() or "Player"
     return f"[{clean_name}](tg://user?id={user_id})"
@@ -397,13 +404,10 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
 
 # ================= BOT COMMANDS =================
 @app.on_message(filters.command("start") & filters.private)
-async def get_bot_username(client: Client) -> str:
-    global BOT_USERNAME
-    if not BOT_USERNAME:
-        me = await client.get_me()
-        BOT_USERNAME = me.username
-    return BOT_USERNAME
+async def start_private(client: Client, message: Message):
+    b_uname = await get_bot_username(client)
     
+    # "Test Color" button removed as requested.
     kb = InlineKeyboardMarkup([
         [c_btn("➕ Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")]
     ])
@@ -473,14 +477,7 @@ async def show_scorecard(client: Client, message: Message):
 
 
 @app.on_message(filters.animation & filters.private)
-async def get_bot_username(*args):
-    # Just grab the message safely from args
-    client = args[0] if len(args) > 0 else None
-    message = args[1] if len(args) > 1 else args[0] if len(args) == 1 else None
-
-    if not message or not hasattr(message, "from_user") or not message.from_user:
-        return
-
+async def handle_custom_gif_upload(client: Client, message: Message):
     if message.from_user.id != OWNER_ID: 
         return await message.reply("❌ **Access Denied!**")
 
@@ -732,7 +729,8 @@ async def prompt_bowler_dm(client: Client, chat_id: int):
     match["turn_id"] += 1
     active_bowlers[bowler_id] = chat_id
 
-    await client.send_message(chat_id, f"⏳ **Delivery {over_num}** ({bat_dict['name']} vs {bowl_dict['name']})\n🏏 **Striker:** {striker_m}\n🎳 **Bowler:** {bowler_m} is selecting a delivery in the Bot's DM...", reply_markup=InlineKeyboardMarkup([[c_btn("🎳 Go to Bot DM (Bowler)", url=f"https://t.me/{await get_bot_username(client)}")]]))
+    b_uname = await get_bot_username(client)
+    await client.send_message(chat_id, f"⏳ **Delivery {over_num}** ({bat_dict['name']} vs {bowl_dict['name']})\n🏏 **Striker:** {striker_m}\n🎳 **Bowler:** {bowler_m} is selecting a delivery in the Bot's DM...", reply_markup=InlineKeyboardMarkup([[c_btn("🎳 Go to Bot DM (Bowler)", url=f"https://t.me/{b_uname}")]]))
 
     try: await client.send_message(bowler_id, f"🎳 **YOUR TURN TO BOWL! (Ball {over_num})**\n🏟️ **Match:** {bat_dict['name']} vs {bowl_dict['name']}\n👤 **Facing Striker:** {striker_m}\n🎨 *Select your secret delivery number (1 to 6):*", reply_markup=get_bowler_numbers_kb("bowl"))
     except RPCError: await client.send_message(chat_id, f"⚠️ {bowler_m} has blocked or not started the Bot DM!")
@@ -847,6 +845,11 @@ def build_match_summary(match: dict, result_banner: str, win_key: str, lose_key:
     else: awards_text = ""
     return f"🏁 **IPL MATCH COMPLETED!** 🏁\n━━━━━━━━━━━━━━━━━━━━━━\n{result_banner}\n🏅 **Winning Squad:** {win_squad_mentions}\n━━━━━━━━━━━━━━━━━━━━━━\n🛡️ **{tA['name']}:** `{tA['score']}/{tA['wickets']}` ({tA['balls']//6}.{tA['balls']%6} ov)\n⚔️ **{tB['name']}:** `{tB['score']}/{tB['wickets']}` ({tB['balls']//6}.{tB['balls']%6} ov)\n\n{awards_text}"
 
+@app.on_callback_query(filters.regex(r"^noop$"))
+async def handle_noop(client: Client, cq: CallbackQuery):
+    kb = InlineKeyboardMarkup([[c_btn(cq.message.reply_markup.inline_keyboard[0][0].text, "noop")]])
+    await safe_answer(cq, "🎨 Color Changed!")
+    await safe_edit(cq.message, cq.message.text.markdown, reply_markup=kb)
 
 if __name__ == "__main__":
     print("🏏 Dynamic Color Kurigram IPL Cricket Bot Starting...")
