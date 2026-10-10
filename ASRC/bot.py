@@ -255,7 +255,7 @@ def format_lobby_text(match: dict) -> str:
         f"👑 **Match Host:** {mention(match['host'], match['host_name'])}\n\n"
         f"🛡️ **{match['team_A']['name']} ({len(team_a)}):**\n{a_list}\n\n"
         f"⚔️ **{match['team_B']['name']} ({len(team_b)}):**\n{b_list}\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        "• **Min Players:** 2 vs 2 (Max Unlimited)\n"
+        "• **Min Players:** 1 vs 1 (Max Unlimited)\n"
         f"• **Format:** {match.get('overs_limit', 6)} Overs ({match.get('max_balls', 36)} Balls)\n"
         "• **Custom IPL Names:** Host can click *'Choose IPL Team Names'* or send `/setteam`!\n"
         "⚠ *Note: Every player must click 'Activate Bot DM' and press `/start`!*"
@@ -321,7 +321,10 @@ def get_toss_decision_kb() -> InlineKeyboardMarkup: return InlineKeyboardMarkup(
 
 # ================= TIMERS & MATCH EVALUATION ENGINE =================
 async def match_timer_task(client: Client, chat_id: int, state_type: str, turn_id: int):
-    """60s Timer Task for Batting, Bowling, and Host Selection."""
+    """60s Timer Task for Batting and Bowling ONLY. (Host timer removed)."""
+    if state_type == "HOST_SELECTING":
+        return  # No timer for Host
+
     # 30 SECONDS WAIT
     await asyncio.sleep(30)
     match = matches.get(chat_id)
@@ -330,7 +333,6 @@ async def match_timer_task(client: Client, chat_id: int, state_type: str, turn_i
     m_name = ""
     if state_type == "WAIT_BOWLER": m_name = mention(match["bowler"], match[match["bowl_team"]]["players"][match["bowler"]])
     elif state_type == "WAIT_BATSMAN": m_name = mention(match["striker"], match[match["bat_team"]]["players"][match["striker"]])
-    elif state_type == "HOST_SELECTING": m_name = mention(match["host"], match["host_name"])
     
     await client.send_message(chat_id, f"⏳ **30 Seconds Remaining!** {m_name}, please make your move fast!")
 
@@ -372,10 +374,6 @@ async def match_timer_task(client: Client, chat_id: int, state_type: str, turn_i
         match["stats"][striker_id]["balls_faced"] += 1
         match["consecutive_wickets"] += 1
         await evaluate_and_continue(client, chat_id, match, is_wicket=True)
-
-    elif state_type == "HOST_SELECTING":
-        await client.send_message(chat_id, f"⚠️ **Host is taking too long!** {m_name}, please select the players ASAP to continue the game!")
-        match["state"] = "HOST_SELECTING" 
 
 
 async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wicket: bool):
@@ -448,15 +446,15 @@ async def start_private(client: Client, message: Message):
     
     explanation = (
         "🏏 **IPL MULTIPLAYER CRICKET BOT** 🏏\n\n"
-        "**Epdi Work Aagum? (How it works):**\n"
-        "1️⃣ First, add this bot to your telegram group.\n"
-        "2️⃣ Group la `/cricket` nu send pannunga. Host Overs select pannadhum Lobby open aagum.\n"
-        "3️⃣ Group la ulla yaru venaalum Join pannikalam. (Aana ellarum DM la vandhu `/start` kuduthurukkanum).\n"
-        "4️⃣ Match start aanadhum, **Match Host** thaan Batsman & Bowler-a select pannuvaaru.\n"
-        "5️⃣ **Bowling:** Bowler-ku Private DM-la 1-6 numbers varum. Adhula thevaiyana number-a click pannanum.\n"
-        "6️⃣ **Batting:** Group-la Batsman-ku 0-6 numbers varum. Batsman click panna udane result varum!\n"
-        "   💥 *Rendu perum same number select panna = WICKET!*\n"
-        "   🏏 *Different number na = RUNS/DOT BALL!*\n"
+        "**How it works:**\n"
+        "1️⃣ First, add this bot to your Telegram group.\n"
+        "2️⃣ Send `/cricket` in the group. Once the Host selects the Overs, the Lobby opens.\n"
+        "3️⃣ Anyone in the group can Join. (Note: Everyone must start the bot in their DM first via `/start`).\n"
+        "4️⃣ Once the match starts, the **Match Host** will select the Batsman & Bowler.\n"
+        "5️⃣ **Bowling:** The Bowler will receive numbers (1-6) in their Private DM. Select a number secretly.\n"
+        "6️⃣ **Batting:** The Batsman will receive numbers (0-6) in the Group. The result appears immediately upon selection!\n"
+        "   💥 *If both select the same number = WICKET!*\n"
+        "   🏏 *If numbers are different = RUNS/DOT BALL!*\n"
     )
 
     await message.reply(f"👋 **Hello {mention(message.from_user.id, message.from_user.first_name)}!**\n\n{explanation}{owner_note}", reply_markup=kb)
@@ -468,7 +466,7 @@ async def help_command(client: Client, message: Message):
     await message.reply(
         "🏏 **HOW TO PLAY IPL MULTIPLAYER CRICKET**\n━━━━━━━━━━━━━━━━━━━━━━\n"
         "1️⃣ **Start Match:** Send `/cricket` in a group to open the Lobby.\n"
-        "2️⃣ **Join Teams:** Minimum **2 players per team** (Unlimited Max). All players must start the bot in DM first.\n"
+        "2️⃣ **Join Teams:** Minimum **1 player per team** (Unlimited Max). All players must start the bot in DM first.\n"
         "3️⃣ **Custom IPL Team Names:** Host can use `/setteam` or click **'Choose IPL Team Names'**.\n"
         "4️⃣ **Host Controls:** Only the user who started the game (`/cricket`) can **Start/End** the match and **Select Players**.\n"
         "5️⃣ **Bowling (DM):** The Bowler secretly selects a number (`1-6`) inside the **Bot's Private DM**.\n"
@@ -539,13 +537,6 @@ async def handle_save_gif_callback(client: Client, cq: CallbackQuery):
     CUSTOM_GIFS[key].append(fid)
     await safe_answer(cq, f"✅ Saved as {choice} GIF!", show_alert=True)
     await safe_edit(cq.message, f"✅ **Success!** This GIF will now appear whenever a **{choice}** happens in the match!", reply_markup=InlineKeyboardMarkup([[c_btn(f"✅ Saved for {choice}", "noop")]]))
-
-
-@app.on_callback_query(filters.regex(r"^dm_color_test$"))
-async def test_dm_color_change(client: Client, cq: CallbackQuery):
-    new_color = next_random_color()
-    await safe_answer(cq, f"Color shifted to {new_color.upper()}!")
-    await safe_edit(cq.message, cq.message.text.markdown, reply_markup=InlineKeyboardMarkup([[c_btn(f"🎨 Color Changed! ({new_color.upper()})", "dm_color_test", color=new_color)]]))
 
 
 @app.on_message(filters.command("cricket") & filters.group)
@@ -643,9 +634,6 @@ async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
 
     if data == "refresh_lobby": return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
     elif data in ["join_A", "join_B"]:
-        try: await client.send_chat_action(user.id, enums.ChatAction.TYPING)
-        except Exception: return await safe_answer(cq, "❌ Please click 'Activate Bot DM' below and press /start first!", show_alert=True)
-
         match["team_A"]["players"].pop(user.id, None)
         match["team_B"]["players"].pop(user.id, None)
         t_key = "team_A" if data == "join_A" else "team_B"
@@ -727,8 +715,6 @@ async def prompt_host_player_selection(client: Client, chat_id: int, need_bat: b
     try: await client.send_message(host_id, f"👑 **Match:** {match['team_A']['name']} vs {match['team_B']['name']}\n👉 Please assign the active players for this phase!", reply_markup=kb)
     except RPCError: await client.send_message(chat_id, f"⚠️ {mention(host_id, match['host_name'])} hasn't started the Bot DM! Please start the bot.")
     
-    asyncio.create_task(match_timer_task(client, chat_id, "HOST_SELECTING", match["turn_id"]))
-
 
 @app.on_callback_query(filters.regex(r"^hostsel_(bat|bowl)_(\d+)$"))
 async def handle_host_selection(client: Client, cq: CallbackQuery):
@@ -880,9 +866,7 @@ def build_match_summary(match: dict, result_banner: str, win_key: str, lose_key:
 
 @app.on_callback_query(filters.regex(r"^noop$"))
 async def handle_noop(client: Client, cq: CallbackQuery):
-    kb = InlineKeyboardMarkup([[c_btn(cq.message.reply_markup.inline_keyboard[0][0].text, "noop")]])
-    await safe_answer(cq, "🎨 Color Changed!")
-    await safe_edit(cq.message, cq.message.text.markdown, reply_markup=kb)
+    await safe_answer(cq, "👇 Please select an option below!")
 
 if __name__ == "__main__":
     print("🏏 Dynamic Color Kurigram IPL Cricket Bot Starting...")
