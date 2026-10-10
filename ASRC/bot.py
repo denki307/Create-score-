@@ -473,17 +473,17 @@ async def show_scorecard(client: Client, message: Message):
 
 
 @app.on_message(filters.animation & filters.private)
-async def get_bot_username(*args, **kwargs):
-    # Extract client and message safely from args
-    client = args[0] if len(args) > 0 else kwargs.get('client')
-    message = args[1] if len(args) > 1 else kwargs.get('message')
-    
-    if not message or not message.from_user:
+async def get_bot_username(*args):
+    # Just grab the message safely from args
+    client = args[0] if len(args) > 0 else None
+    message = args[1] if len(args) > 1 else args[0] if len(args) == 1 else None
+
+    if not message or not hasattr(message, "from_user") or not message.from_user:
         return
-        
+
     if message.from_user.id != OWNER_ID: 
         return await message.reply("❌ **Access Denied!**")
-        
+
     fid = message.animation.file_id
     pending_gif_save[message.from_user.id] = fid
     kb = InlineKeyboardMarkup([
