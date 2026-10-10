@@ -473,7 +473,7 @@ async def show_scorecard(client: Client, message: Message):
 
 
 @app.on_message(filters.animation & filters.private)
-async def handle_custom_gif_upload(client: Client, message: Message):
+async def get_bot_username(self, client, message):
     if message.from_user.id != OWNER_ID: return await message.reply("❌ **Access Denied!**")
     fid = message.animation.file_id
     pending_gif_save[message.from_user.id] = fid
