@@ -46,16 +46,32 @@ pending_gif_save = {}
 BOT_USERNAME = None  
 BOT_ID = None
 
-# ================= PREMIUM EMOJI ENGINE (CLEAN & ALIGNED) =================
-# Removed 6084869030840114492 as it renders blank/invisible causing misalignment
+# ================= PREMIUM EMOJI ENGINE (OLD + NEW MIXED & ALIGNED) =================
 PREMIUM_IDS = [
-    5416028144794617466, # 0: Robot
-    5465198403573012261, # 1: Red Ball / Pin
-    5938508592775696902, # 2: Plus
-    5393194986252542669, # 3: Wave / Hand
-    5469785308386041323, # 4: Point Right
-    5461130232025078672, # 5: Crown
-    5346089086325130313, # 6: Rocket
+    # --- Pazhaiya 7 IDs ---
+    5416028144794617466, # 0
+    5465198403573012261, # 1
+    5938508592775696902, # 2
+    5393194986252542669, # 3
+    5469785308386041323, # 4
+    5461130232025078672, # 5
+    5346089086325130313, # 6
+    # --- Pudhusa neenga kudutha 15 IDs ---
+    5379600444098093058, # 7
+    5408935401442267103, # 8
+    5445284980978621387, # 9
+    5382013970905309819, # 10
+    5332547853304734597, # 11
+    5334644364280866007, # 12
+    5282750778409233531, # 13
+    5283195573812340110, # 14
+    5280735858926822987, # 15
+    5409008750893734809, # 16
+    5399898266265475100, # 17
+    5431449001532594346, # 18
+    5467928559664242360, # 19
+    5264727218734524899, # 20
+    5370870691140737817  # 21
 ]
 
 def p_emo(idx: int, fallback: str = "•") -> str:
@@ -63,15 +79,15 @@ def p_emo(idx: int, fallback: str = "•") -> str:
     eid = PREMIUM_IDS[idx % len(PREMIUM_IDS)]
     return f"<emoji id='{eid}'>{fallback}</emoji>"
 
-# Pre-mapped Visible Premium Emojis for Perfect Alignment
-E1 = p_emo(6, "🚀") # Rocket / Main Header / Action
-E2 = p_emo(5, "👑") # Crown / Host / Winner
-E3 = p_emo(1, "🔴") # Ball / Match / Live
-E4 = p_emo(2, "➕") # Plus / Info / Alert
-E5 = p_emo(4, "👉") # Point / Target / Prompt
-E6 = p_emo(0, "🤖") # Bot / Shield / Team
-E7 = p_emo(3, "👋") # Hand / Player / Timer
-E8 = p_emo(5, "👑") # Trophy / Crown
+# Text Messages-kku Old & New IDs kalandhu vachirukken (Perfectly visible)
+E1 = p_emo(6, "🚀")  # Old Rocket
+E2 = p_emo(5, "👑")  # Old Crown
+E3 = p_emo(7, "🔴")  # New ID
+E4 = p_emo(8, "➕")  # New ID
+E5 = p_emo(9, "👉")  # New ID
+E6 = p_emo(10, "🤖") # New ID
+E7 = p_emo(12, "👋") # New ID
+E8 = p_emo(16, "🏆") # New ID
 
 LINE = "━━━━━━━━━━━━━━━" # 15 chars - Never wraps to 2nd line on mobile!
 
@@ -133,6 +149,7 @@ def c_btn(text: str, callback_data: str = None, url: str = None, color: str = No
     if color is None:
         color = next_random_color()
     if emoji_id is None:
+        # Ithu automatic-a unga 22 IDs-aiyum buttons-la maari maari cycle pannum!
         emoji_id = PREMIUM_IDS[_btn_emo_counter % len(PREMIUM_IDS)]
         _btn_emo_counter += 1
 
@@ -358,7 +375,7 @@ def generate_winner_scorecard_image(match: dict, win_key: str, lose_key: str, ba
 
 # ================= GIF ENGINE =================
 async def send_event_gif(client: Client, chat_id: int, event_key, caption: str, auto_delete: int = 12):
-    kb = InlineKeyboardMarkup([[c_btn("Match Highlight", callback_data="noop", color=next_random_color(), emoji_id=PREMIUM_IDS[1])]])
+    kb = InlineKeyboardMarkup([[c_btn("Match Highlight", callback_data="noop", color=next_random_color())]])
     candidates = list(CUSTOM_GIFS.get(event_key, []))
     random.shuffle(candidates)
     if not candidates: candidates.extend(FALLBACK_CRICKET_GIFS.get(event_key, []))
@@ -374,7 +391,7 @@ async def send_event_gif(client: Client, chat_id: int, event_key, caption: str, 
         except Exception: continue
 
 
-# ================= WRAPPERS & KEYBOARDS (NO NORMAL EMOJIS, PERFECT ALIGNMENT) =================
+# ================= WRAPPERS & KEYBOARDS (PERFECT ALIGNMENT) =================
 async def safe_edit(message: Message, text: str, reply_markup: InlineKeyboardMarkup = None):
     try: return await message.edit_text(text=text, reply_markup=reply_markup)
     except MessageNotModified:
@@ -403,10 +420,10 @@ def cleanup_match(chat_id: int):
 
 def get_overs_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [c_btn("1 Over", "setovers_1", emoji_id=PREMIUM_IDS[0]), c_btn("2 Overs", "setovers_2", emoji_id=PREMIUM_IDS[1]), c_btn("3 Overs", "setovers_3", emoji_id=PREMIUM_IDS[2])],
-        [c_btn("4 Overs", "setovers_4", emoji_id=PREMIUM_IDS[3]), c_btn("5 Overs", "setovers_5", emoji_id=PREMIUM_IDS[4]), c_btn("6 Overs", "setovers_6", emoji_id=PREMIUM_IDS[5])],
-        [c_btn("7 Overs", "setovers_7", emoji_id=PREMIUM_IDS[6]), c_btn("8 Overs", "setovers_8", emoji_id=PREMIUM_IDS[0]), c_btn("9 Overs", "setovers_9", emoji_id=PREMIUM_IDS[1])],
-        [c_btn("10 OVERS MATCH", "setovers_10", color="blue", emoji_id=PREMIUM_IDS[5])],
+        [c_btn("1 Over", "setovers_1"), c_btn("2 Overs", "setovers_2"), c_btn("3 Overs", "setovers_3")],
+        [c_btn("4 Overs", "setovers_4"), c_btn("5 Overs", "setovers_5"), c_btn("6 Overs", "setovers_6")],
+        [c_btn("7 Overs", "setovers_7"), c_btn("8 Overs", "setovers_8"), c_btn("9 Overs", "setovers_9")],
+        [c_btn("10 OVERS MATCH", "setovers_10", color="blue")],
     ])
 
 def format_lobby_text(match: dict) -> str:
@@ -437,63 +454,63 @@ def format_ipl_menu_text(match: dict) -> str:
 def get_lobby_kb(match: dict, bot_username: str) -> InlineKeyboardMarkup:
     colors = random.sample(_COLOR_CYCLE, 3)
     return InlineKeyboardMarkup([
-        [c_btn(f"Join {match['team_A']['name']}", "join_A", color=colors[0], emoji_id=PREMIUM_IDS[6]), c_btn(f"Join {match['team_B']['name']}", "join_B", color=colors[1], emoji_id=PREMIUM_IDS[0])],
-        [c_btn("Choose IPL Team Names", "open_ipl_menu", color=colors[2], emoji_id=PREMIUM_IDS[4])],
-        [c_btn("Refresh Colors", "refresh_lobby", emoji_id=PREMIUM_IDS[5]), c_btn("Leave Lobby", "leave_lobby", emoji_id=PREMIUM_IDS[2])],
-        [c_btn("Activate Bot DM", url=f"https://t.me/{bot_username}?start=cricket", emoji_id=PREMIUM_IDS[0])],
-        [c_btn("Start Match", "start_game", color="blue", emoji_id=PREMIUM_IDS[6]), c_btn("End Lobby", "cancel_game", color="red", emoji_id=PREMIUM_IDS[1])],
+        [c_btn(f"Join {match['team_A']['name']}", "join_A", color=colors[0]), c_btn(f"Join {match['team_B']['name']}", "join_B", color=colors[1])],
+        [c_btn("Choose IPL Team Names", "open_ipl_menu", color=colors[2])],
+        [c_btn("Refresh Colors", "refresh_lobby"), c_btn("Leave Lobby", "leave_lobby")],
+        [c_btn("Activate Bot DM", url=f"https://t.me/{bot_username}?start=cricket")],
+        [c_btn("Start Match", "start_game", color="blue"), c_btn("End Lobby", "cancel_game", color="red")],
     ])
 
 def get_ipl_team_selection_kb(match: dict, standalone: bool = False) -> InlineKeyboardMarkup:
     # 3-3-4 Grid Layout so Team Names never get cut off!
     rows = [
-        [c_btn(f"Select for {match['team_A']['name']} (Team 1)", "noop", color="blue", emoji_id=PREMIUM_IDS[6])],
-        [c_btn("CSK", "setipl_A_CSK", emoji_id=PREMIUM_IDS[0]), c_btn("MI", "setipl_A_MI", emoji_id=PREMIUM_IDS[4]), c_btn("RCB", "setipl_A_RCB", emoji_id=PREMIUM_IDS[5])],
-        [c_btn("KKR", "setipl_A_KKR", emoji_id=PREMIUM_IDS[2]), c_btn("SRH", "setipl_A_SRH", emoji_id=PREMIUM_IDS[1]), c_btn("RR", "setipl_A_RR", emoji_id=PREMIUM_IDS[3])],
-        [c_btn("GT", "setipl_A_GT", emoji_id=PREMIUM_IDS[1]), c_btn("DC", "setipl_A_DC", emoji_id=PREMIUM_IDS[6]), c_btn("PBKS", "setipl_A_PBKS", emoji_id=PREMIUM_IDS[0]), c_btn("LSG", "setipl_A_LSG", emoji_id=PREMIUM_IDS[4])],
+        [c_btn(f"Select for {match['team_A']['name']} (Team 1)", "noop", color="blue")],
+        [c_btn("CSK", "setipl_A_CSK"), c_btn("MI", "setipl_A_MI"), c_btn("RCB", "setipl_A_RCB")],
+        [c_btn("KKR", "setipl_A_KKR"), c_btn("SRH", "setipl_A_SRH"), c_btn("RR", "setipl_A_RR")],
+        [c_btn("GT", "setipl_A_GT"), c_btn("DC", "setipl_A_DC"), c_btn("PBKS", "setipl_A_PBKS"), c_btn("LSG", "setipl_A_LSG")],
         
-        [c_btn(f"Select for {match['team_B']['name']} (Team 2)", "noop", color="red", emoji_id=PREMIUM_IDS[5])],
-        [c_btn("CSK", "setipl_B_CSK", emoji_id=PREMIUM_IDS[2]), c_btn("MI", "setipl_B_MI", emoji_id=PREMIUM_IDS[6]), c_btn("RCB", "setipl_B_RCB", emoji_id=PREMIUM_IDS[3])],
-        [c_btn("KKR", "setipl_B_KKR", emoji_id=PREMIUM_IDS[1]), c_btn("SRH", "setipl_B_SRH", emoji_id=PREMIUM_IDS[6]), c_btn("RR", "setipl_B_RR", emoji_id=PREMIUM_IDS[0])],
-        [c_btn("GT", "setipl_B_GT", emoji_id=PREMIUM_IDS[4]), c_btn("DC", "setipl_B_DC", emoji_id=PREMIUM_IDS[5]), c_btn("PBKS", "setipl_B_PBKS", emoji_id=PREMIUM_IDS[2]), c_btn("LSG", "setipl_B_LSG", emoji_id=PREMIUM_IDS[3])],
+        [c_btn(f"Select for {match['team_B']['name']} (Team 2)", "noop", color="red")],
+        [c_btn("CSK", "setipl_B_CSK"), c_btn("MI", "setipl_B_MI"), c_btn("RCB", "setipl_B_RCB")],
+        [c_btn("KKR", "setipl_B_KKR"), c_btn("SRH", "setipl_B_SRH"), c_btn("RR", "setipl_B_RR")],
+        [c_btn("GT", "setipl_B_GT"), c_btn("DC", "setipl_B_DC"), c_btn("PBKS", "setipl_B_PBKS"), c_btn("LSG", "setipl_B_LSG")],
     ]
     if standalone:
-        rows.append([c_btn("Done / Close Menu", "close_setteam", color="green", emoji_id=PREMIUM_IDS[5])])
+        rows.append([c_btn("Done / Close Menu", "close_setteam", color="green")])
     else:
-        rows.append([c_btn("Back to Match Lobby", "back_to_lobby", color="green", emoji_id=PREMIUM_IDS[3])])
+        rows.append([c_btn("Back to Match Lobby", "back_to_lobby", color="green")])
     return InlineKeyboardMarkup(rows)
 
 def get_bowler_numbers_kb(prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [c_btn("1", f"{prefix}_1", emoji_id=PREMIUM_IDS[0]), c_btn("2", f"{prefix}_2", emoji_id=PREMIUM_IDS[1]), c_btn("3", f"{prefix}_3", emoji_id=PREMIUM_IDS[2])],
-        [c_btn("4 FOUR", f"{prefix}_4", color="blue", emoji_id=PREMIUM_IDS[4]), c_btn("5", f"{prefix}_5", emoji_id=PREMIUM_IDS[3]), c_btn("6 SIX", f"{prefix}_6", color="green", emoji_id=PREMIUM_IDS[6])],
+        [c_btn("1", f"{prefix}_1"), c_btn("2", f"{prefix}_2"), c_btn("3", f"{prefix}_3")],
+        [c_btn("4 FOUR", f"{prefix}_4", color="blue"), c_btn("5", f"{prefix}_5"), c_btn("6 SIX", f"{prefix}_6", color="green")],
     ])
 
 def get_batsman_numbers_kb(prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [c_btn("0 (Dot Ball / Defend)", f"{prefix}_0", color="red", emoji_id=PREMIUM_IDS[1])],
-        [c_btn("1", f"{prefix}_1", emoji_id=PREMIUM_IDS[0]), c_btn("2", f"{prefix}_2", emoji_id=PREMIUM_IDS[2]), c_btn("3", f"{prefix}_3", emoji_id=PREMIUM_IDS[3])],
-        [c_btn("4 FOUR", f"{prefix}_4", color="blue", emoji_id=PREMIUM_IDS[4]), c_btn("5", f"{prefix}_5", emoji_id=PREMIUM_IDS[5]), c_btn("6 SIX", f"{prefix}_6", color="green", emoji_id=PREMIUM_IDS[6])],
+        [c_btn("0 (Dot Ball / Defend)", f"{prefix}_0", color="red")],
+        [c_btn("1", f"{prefix}_1"), c_btn("2", f"{prefix}_2"), c_btn("3", f"{prefix}_3")],
+        [c_btn("4 FOUR", f"{prefix}_4", color="blue"), c_btn("5", f"{prefix}_5"), c_btn("6 SIX", f"{prefix}_6", color="green")],
     ])
 
 def get_host_player_select_kb(match: dict, need_bat: bool, need_bowl: bool) -> InlineKeyboardMarkup:
     rows, bat_team, bowl_team = [], match[match["bat_team"]], match[match["bowl_team"]]
     if need_bat:
         avail_bat = {uid: name for uid, name in bat_team["players"].items() if uid not in match["out_players"]}
-        rows.append([c_btn(f"Select Striker ({bat_team['name']})", "noop", color="blue", emoji_id=PREMIUM_IDS[6])])
-        for idx, (uid, name) in enumerate(avail_bat.items()):
-            rows.append([c_btn(f"{name}", f"hostsel_bat_{uid}", emoji_id=PREMIUM_IDS[idx % len(PREMIUM_IDS)])])
+        rows.append([c_btn(f"Select Striker ({bat_team['name']})", "noop", color="blue")])
+        for uid, name in avail_bat.items():
+            rows.append([c_btn(f"{name}", f"hostsel_bat_{uid}")])
     if need_bowl:
-        rows.append([c_btn(f"Select Bowler ({bowl_team['name']})", "noop", color="red", emoji_id=PREMIUM_IDS[1])])
-        for idx, (uid, name) in enumerate(bowl_team["players"].items()):
-            rows.append([c_btn(f"{name}", f"hostsel_bowl_{uid}", emoji_id=PREMIUM_IDS[(idx + 3) % len(PREMIUM_IDS)])])
+        rows.append([c_btn(f"Select Bowler ({bowl_team['name']})", "noop", color="red")])
+        for uid, name in bowl_team["players"].items():
+            rows.append([c_btn(f"{name}", f"hostsel_bowl_{uid}")])
     return InlineKeyboardMarkup(rows)
 
 def get_toss_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[c_btn("Heads", "toss_Heads", emoji_id=PREMIUM_IDS[5]), c_btn("Tails", "toss_Tails", emoji_id=PREMIUM_IDS[6])]])
+    return InlineKeyboardMarkup([[c_btn("Heads", "toss_Heads"), c_btn("Tails", "toss_Tails")]])
 
 def get_toss_decision_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[c_btn("Batting", "decide_bat", emoji_id=PREMIUM_IDS[6]), c_btn("Bowling", "decide_bowl", emoji_id=PREMIUM_IDS[1])]])
+    return InlineKeyboardMarkup([[c_btn("Batting", "decide_bat"), c_btn("Bowling", "decide_bowl")]])
 
 
 # ================= TIMERS & MATCH EVALUATION ENGINE =================
@@ -583,7 +600,7 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
                 win_key, lose_key, result_msg = match["bowl_team"], match["bat_team"], f"{E2} **{bowl_dict['name']} WON BY {runs_margin} RUNS!**"
 
             summary = build_match_summary(match, result_msg, win_key, lose_key)
-            end_kb = InlineKeyboardMarkup([[c_btn("Match Completed", "noop", emoji_id=PREMIUM_IDS[5])]])
+            end_kb = InlineKeyboardMarkup([[c_btn("Match Completed", "noop")]])
             try:
                 poster_bio = generate_winner_scorecard_image(match, win_key, lose_key, result_msg.replace("*", ""))
                 cleanup_match(chat_id)
@@ -617,7 +634,7 @@ async def start_private(client: Client, message: Message):
     b_uname = await get_bot_username(client)
     
     kb = InlineKeyboardMarkup([
-        [c_btn("Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue", emoji_id=PREMIUM_IDS[2])]
+        [c_btn("Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")]
     ])
     owner_note = f"\n\n{E2} **Owner Mode Active:** Send any GIF here in DM to set custom **SIX, FOUR, WICKET, HATTRICK, or WIN** GIFs!" if message.from_user.id == OWNER_ID else ""
     
@@ -639,7 +656,7 @@ async def start_private(client: Client, message: Message):
 
 @app.on_message(filters.command("help") & (filters.group | filters.private))
 async def help_command(client: Client, message: Message):
-    kb = InlineKeyboardMarkup([[c_btn("Click to Shift Color", callback_data="noop", color=next_random_color(), emoji_id=PREMIUM_IDS[5])]])
+    kb = InlineKeyboardMarkup([[c_btn("Click to Shift Color", callback_data="noop", color=next_random_color())]])
     await message.reply(
         f"{E1} **HOW TO PLAY IPL CRICKET**\n{LINE}\n"
         f"{E2} **Start Match:** Send `/cricket` in a group.\n"
@@ -682,7 +699,7 @@ async def show_scorecard(client: Client, message: Message):
         f"{E7} **Striker:** {striker_mention} — `{s_stat['runs']}* ({s_stat['balls_faced']})`\n"
         f"{E3} **Bowler:** {bowler_mention} — `{b_stat['wickets']}-{b_stat['runs_conceded']} ({b_stat['balls_bowled']//6}.{b_stat['balls_bowled']%6})`\n{LINE}"
     )
-    await message.reply(text, reply_markup=InlineKeyboardMarkup([[c_btn("Live Scoreboard", callback_data="noop", color=next_random_color(), emoji_id=PREMIUM_IDS[5])]]))
+    await message.reply(text, reply_markup=InlineKeyboardMarkup([[c_btn("Live Scoreboard", callback_data="noop", color=next_random_color())]]))
 
 
 @app.on_message(filters.animation & filters.private)
@@ -693,9 +710,9 @@ async def handle_custom_gif_upload(client: Client, message: Message):
     fid = message.animation.file_id
     pending_gif_save[message.from_user.id] = fid
     kb = InlineKeyboardMarkup([
-        [c_btn("Save as SIX GIF", "savegif_6", color="green", emoji_id=PREMIUM_IDS[6]), c_btn("Save as WICKET GIF", "savegif_WICKET", color="red", emoji_id=PREMIUM_IDS[1])],
-        [c_btn("Save as HAT-TRICK", "savegif_HATTRICK", color="blue", emoji_id=PREMIUM_IDS[5]), c_btn("Save as FOUR GIF", "savegif_4", color="blue", emoji_id=PREMIUM_IDS[4])],
-        [c_btn("Save as WIN GIF", "savegif_WIN", emoji_id=PREMIUM_IDS[5]), c_btn("Clear Saved GIFs", "savegif_CLEAR", color="red", emoji_id=PREMIUM_IDS[2])]
+        [c_btn("Save as SIX GIF", "savegif_6", color="green"), c_btn("Save as WICKET GIF", "savegif_WICKET", color="red")],
+        [c_btn("Save as HAT-TRICK", "savegif_HATTRICK", color="blue"), c_btn("Save as FOUR GIF", "savegif_4", color="blue")],
+        [c_btn("Save as WIN GIF", "savegif_WIN"), c_btn("Clear Saved GIFs", "savegif_CLEAR", color="red")]
     ])
     await message.reply(f"{E2} **Owner GIF Manager:**\nWhere should this GIF be used during live matches?", reply_markup=kb)
 
@@ -714,7 +731,7 @@ async def handle_save_gif_callback(client: Client, cq: CallbackQuery):
     key = int(choice) if choice in ["4", "6"] else choice
     CUSTOM_GIFS[key].append(fid)
     await safe_answer(cq, f"Saved as {choice} GIF!", show_alert=True)
-    await safe_edit(cq.message, f"{E2} **Success!** This GIF will now appear whenever a **{choice}** happens!", reply_markup=InlineKeyboardMarkup([[c_btn(f"Saved for {choice}", "noop", emoji_id=PREMIUM_IDS[5])]]))
+    await safe_edit(cq.message, f"{E2} **Success!** This GIF will now appear whenever a **{choice}** happens!", reply_markup=InlineKeyboardMarkup([[c_btn(f"Saved for {choice}", "noop")]]))
 
 
 @app.on_message(filters.command("cricket") & filters.group)
@@ -913,7 +930,7 @@ async def prompt_host_player_selection(client: Client, chat_id: int, need_bat: b
     await client.send_message(
         chat_id,
         f"{E7} **Match Host ({match['host_name']}) is selecting players in Bot DM...**",
-        reply_markup=InlineKeyboardMarkup([[c_btn("Host: Select in DM", url=f"https://t.me/{b_uname}", emoji_id=PREMIUM_IDS[5])]])
+        reply_markup=InlineKeyboardMarkup([[c_btn("Host: Select in DM", url=f"https://t.me/{b_uname}")]])
     )
 
     try:
@@ -966,7 +983,7 @@ async def prompt_bowler_dm(client: Client, chat_id: int):
         f"{E3} **Delivery {over_num}** ({bat_dict['name']} vs {bowl_dict['name']})\n"
         f"{E1} **Striker:** {striker_m}\n"
         f"{E5} **Bowler:** {bowler_m} is bowling in Bot DM...",
-        reply_markup=InlineKeyboardMarkup([[c_btn("Go to Bot DM (Bowler)", url=f"https://t.me/{b_uname}", emoji_id=PREMIUM_IDS[1])]])
+        reply_markup=InlineKeyboardMarkup([[c_btn("Go to Bot DM (Bowler)", url=f"https://t.me/{b_uname}")]])
     )
 
     try:
@@ -1002,7 +1019,7 @@ async def handle_bowler_dm(client: Client, cq: CallbackQuery):
     await safe_edit(
         cq.message,
         f"{E2} **Ball Delivered!** You bowled `{ball_val}`.\n{E5} Head back to the Group to see the shot!",
-        reply_markup=InlineKeyboardMarkup([[c_btn(f"Delivered Ball: {ball_val}", "noop", emoji_id=PREMIUM_IDS[5])]])
+        reply_markup=InlineKeyboardMarkup([[c_btn(f"Delivered Ball: {ball_val}", "noop")]])
     )
 
     striker_id, bat_dict = match["striker"], match[match["bat_team"]]
@@ -1081,7 +1098,7 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
     target_line = f" | **Target:** `{match['target']}`" if match["target"] else ""
     board_footer = f"\n{LINE}\n{E6} **{bat_dict['name']}:** `{bat_dict['score']}/{bat_dict['wickets']}` ({overs_str}/{match.get('overs_limit', 6)}.0 ov){target_line}"
     
-    await safe_edit(cq.message, action_header + board_footer, reply_markup=InlineKeyboardMarkup([[c_btn("MATCH SCORE UPDATED", "noop", emoji_id=PREMIUM_IDS[6])]]))
+    await safe_edit(cq.message, action_header + board_footer, reply_markup=InlineKeyboardMarkup([[c_btn("MATCH SCORE UPDATED", "noop")]]))
 
     if gif_to_play:
         await send_event_gif(client, chat_id, gif_to_play, gif_caption, auto_delete=12)
@@ -1112,5 +1129,5 @@ async def handle_noop(client: Client, cq: CallbackQuery):
     await safe_answer(cq, "Please select an option below!")
 
 if __name__ == "__main__":
-    print("Dynamic Color Kurigram IPL Cricket Bot Starting with Aligned Premium Emojis...")
+    print("Dynamic Color Kurigram IPL Cricket Bot Starting with 22 Premium Emojis...")
     app.run()
