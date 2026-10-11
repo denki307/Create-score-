@@ -248,10 +248,13 @@ async def broadcast_msg(client: Client, message: Message):
     if len(message.command) < 2 and not message.reply_to_message:
         return await message.reply(f"{E4} Usage: `/broadcast Hello everyone!` or reply to a message with `/broadcast`")
     
-    msg_to_send = await message.reply(f"{E7} **Starting Broadcast...**")
-    success, failed = 0, 0
     active_groups = await groups_col.find({"active": True}).to_list(length=None)
+    total_groups = len(active_groups)
     
+    # Broadcast Total Count Feature Added Here
+    msg_to_send = await message.reply(f"{E7} **Starting Broadcast...**\n{LINE}\n{E6} **Target Groups:** `{total_groups}`")
+    
+    success, failed = 0, 0
     for grp in active_groups:
         try:
             if message.reply_to_message:
@@ -267,8 +270,10 @@ async def broadcast_msg(client: Client, message: Message):
             failed += 1
             await groups_col.update_one({"chat_id": grp["chat_id"]}, {"$set": {"active": False}})
 
+    # Broadcast Final Stats Feature
     await msg_to_send.edit_text(
-        f"{E8} **Broadcast Completed!**\n"
+        f"{E8} **Broadcast Completed!**\n{LINE}\n"
+        f"{E2} **Total Groups Checked:** `{total_groups}`\n"
         f"{E5} **Success:** `{success}` Groups\n"
         f"{E4} **Failed/Removed:** `{failed}` Groups"
     )
@@ -462,7 +467,6 @@ def get_lobby_kb(match: dict, bot_username: str) -> InlineKeyboardMarkup:
     ])
 
 def get_ipl_team_selection_kb(match: dict, standalone: bool = False) -> InlineKeyboardMarkup:
-    # 3-3-4 Grid Layout so Team Names never get cut off!
     rows = [
         [c_btn(f"Select for {match['team_A']['name']} (Team 1)", "noop", color="blue")],
         [c_btn("CSK", "setipl_A_CSK"), c_btn("MI", "setipl_A_MI"), c_btn("RCB", "setipl_A_RCB")],
@@ -633,6 +637,13 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
 async def start_private(client: Client, message: Message):
     b_uname = await get_bot_username(client)
     
+    # User Start Log Feature Added Here
+    try:
+        log_msg = f"{E6} **New User Started Bot!**\n{LINE}\n{E5} **User:** {message.from_user.mention}\n{E1} **ID:** `{message.from_user.id}`"
+        await client.send_message(LOG_GROUP_ID, log_msg)
+    except Exception:
+        pass
+
     kb = InlineKeyboardMarkup([
         [c_btn("Add me to your Group", url=f"https://t.me/{b_uname}?startgroup=true", color="blue")]
     ])
@@ -905,6 +916,19 @@ async def handle_toss_decision(client: Client, cq: CallbackQuery):
     match["bowl_team"] = lose_team if choice == "bat" else win_team
     match["status"], match["striker"], match["bowler"] = "LIVE", None, None
 
+    # Match Start Log Feature Added Here
+    try:
+        log_msg = (
+            f"{E1} **New Match Started!**\n{LINE}\n"
+            f"{E6} **Group:** `{cq.message.chat.title or 'Unknown Group'}` (`{chat_id}`)\n"
+            f"{E2} **Host:** {mention(match['host'], match['host_name'])}\n"
+            f"{E5} **Teams:** {match[match['bat_team']]['name']} vs {match[match['bowl_team']]['name']}\n"
+            f"{E3} **Overs:** `{match.get('overs_limit', 6)}`"
+        )
+        await client.send_message(LOG_GROUP_ID, log_msg)
+    except Exception:
+        pass
+
     await safe_answer(cq, "Match Started!")
     await safe_edit(
         cq.message,
@@ -1129,5 +1153,5 @@ async def handle_noop(client: Client, cq: CallbackQuery):
     await safe_answer(cq, "Please select an option below!")
 
 if __name__ == "__main__":
-    print("Dynamic Color Kurigram IPL Cricket Bot Starting with 22 Premium Emojis...")
+    print("Dynamic Color Kurigram IPL Cricket Bot Starting with Advanced Logging...")
     app.run()
