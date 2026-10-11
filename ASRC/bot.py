@@ -842,8 +842,19 @@ async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
 
     b_uname, data = await get_bot_username(client), cq.data
 
-    if data == "refresh_lobby": return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+    if data == "refresh_lobby": 
+        return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+    
     elif data in ["join_A", "join_B"]:
+        try:
+            await client.send_chat_action(user.id, enums.ChatAction.TYPING)
+        except Exception:
+            return await safe_answer(
+                cq,
+                "⚠️ MUST START BOT FIRST!\n\nClick 'Activate Bot DM' and send /start in private chat to join!",
+                show_alert=True,
+            )
+
         match["team_A"]["players"].pop(user.id, None)
         match["team_B"]["players"].pop(user.id, None)
         t_key = "team_A" if data == "join_A" else "team_B"
