@@ -1,6 +1,5 @@
-kurigram
+Kurigram
 tgcrypto
 aiohttp
 Pillow
-
-
+motor
