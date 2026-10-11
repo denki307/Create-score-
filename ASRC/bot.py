@@ -3,6 +3,7 @@ import inspect
 import io
 import os
 import random
+import time
 import urllib.parse
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
@@ -14,12 +15,17 @@ from pyrogram.types import (
     InlineKeyboardMarkup,
     Message,
 )
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # ================= CONFIGURATION (HEROKU + LOCAL READY) =================
 API_ID = int(os.getenv("API_ID", "12345678"))
 API_HASH = os.getenv("API_HASH", "your_api_hash")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "your_bot_token")
 OWNER_ID = int(os.getenv("OWNER_ID", "123456789"))
+
+# PUDHUSA ADD PANNADHU: MongoDB & Log Group ID
+LOG_GROUP_ID = int(os.getenv("LOG_GROUP_ID", "-1001234567890")) # Replace with your Log Group ID
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://...") # Replace with your MongoDB URI
 
 app = Client(
     "DynamicColorCricketBot",
@@ -28,12 +34,18 @@ app = Client(
     bot_token=BOT_TOKEN,
 )
 
+# MongoDB Setup
+mongo_client = AsyncIOMotorClient(MONGO_URI)
+db = mongo_client["CricketBot"]
+groups_col = db["groups"]
+
 # Global Storage
 matches = {}  
 active_bowlers = {}  
 host_active_matches = {} 
 pending_gif_save = {}  
 BOT_USERNAME = None  
+BOT_ID = None
 
 IPL_TEAMS = {
     "CSK": "CSK 💛", "MI": "MI 💙", "RCB": "RCB ❤️", "KKR": "KKR 💜",
@@ -66,10 +78,11 @@ _click_counter = 0
 
 # ================= HELPERS & COLOR BUTTONS =================
 async def get_bot_username(client: Client) -> str:
-    global BOT_USERNAME
+    global BOT_USERNAME, BOT_ID
     if not BOT_USERNAME:
         me = await client.get_me()
         BOT_USERNAME = me.username
+        BOT_ID = me.id
     return BOT_USERNAME
 
 def mention(user_id: int, name: str) -> str:
@@ -112,6 +125,91 @@ def c_btn(text: str, callback_data: str = None, url: str = None, color: str = No
         return InlineKeyboardButton(**kwargs)
 
     return InlineKeyboardButton(**kwargs)
+
+
+# ================= PUDHUSA ADD PANNADHU: GROUP LOGGER & OWNER COMMANDS =================
+@app.on_chat_member_updated()
+async def log_group_add_remove(client: Client, update):
+    await get_bot_username(client) # Ensure BOT_ID is set
+    
+    # Check if the update is about the bot itself
+    if not update.new_chat_member or update.new_chat_member.user.id != BOT_ID:
+        return
+
+    chat_id = update.chat.id
+    chat_title = update.chat.title or "Unknown Group"
+    status = update.new_chat_member.status
+
+    if status in [enums.ChatMemberStatus.MEMBER, enums.ChatMemberStatus.ADMINISTRATOR]:
+        # Bot Added
+        await groups_col.update_one({"chat_id": chat_id}, {"$set": {"chat_name": chat_title, "active": True}}, upsert=True)
+        try:
+            adder = update.from_user.mention if update.from_user else "Unknown User"
+            msg = f"🆕 **Bot Added to New Group!**\n━━━━━━━━━━━━━━━\n📌 **Group Name:** `{chat_title}`\n🆔 **Group ID:** `{chat_id}`\n👤 **Added By:** {adder}\n📊 **Status:** Active in DB"
+            await client.send_message(LOG_GROUP_ID, msg)
+        except Exception: pass
+        
+    elif status in [enums.ChatMemberStatus.LEFT, enums.ChatMemberStatus.BANNED]:
+        # Bot Removed
+        await groups_col.update_one({"chat_id": chat_id}, {"$set": {"active": False}})
+        try:
+            msg = f"🚫 **Bot Removed from Group!**\n━━━━━━━━━━━━━━━\n📌 **Group Name:** `{chat_title}`\n🆔 **Group ID:** `{chat_id}`\n📊 **Status:** Marked Inactive in DB"
+            await client.send_message(LOG_GROUP_ID, msg)
+        except Exception: pass
+
+@app.on_message(filters.command("stats") & filters.user(OWNER_ID))
+async def bot_stats(client: Client, message: Message):
+    active_groups = await groups_col.count_documents({"active": True})
+    live_matches = len(matches)
+    text = f"📊 **BOT STATISTICS**\n━━━━━━━━━━━━━━━\n🏢 **Total Active Groups:** `{active_groups}`\n🏏 **Live Matches Running:** `{live_matches}`"
+    await message.reply(text)
+
+@app.on_message(filters.command("broadcast") & filters.user(OWNER_ID))
+async def broadcast_msg(client: Client, message: Message):
+    if len(message.command) < 2 and not message.reply_to_message:
+        return await message.reply("⚠️ Usage: `/broadcast Hello everyone!` or reply to a message with `/broadcast`")
+    
+    msg_to_send = await message.reply("⏳ **Starting Broadcast...**")
+    success, failed = 0, 0
+    active_groups = await groups_col.find({"active": True}).to_list(length=None)
+    
+    for grp in active_groups:
+        try:
+            if message.reply_to_message:
+                await message.reply_to_message.copy(grp["chat_id"])
+            else:
+                text = message.text.split(None, 1)[1]
+                await client.send_message(grp["chat_id"], text)
+            success += 1
+            await asyncio.sleep(0.3) 
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+        except Exception:
+            failed += 1
+            await groups_col.update_one({"chat_id": grp["chat_id"]}, {"$set": {"active": False}})
+
+    await msg_to_send.edit_text(f"✅ **Broadcast Completed!**\n🎯 **Success:** `{success}` Groups\n🚫 **Failed/Removed:** `{failed}` Groups")
+
+@app.on_message(filters.command("sudoend") & filters.user(OWNER_ID))
+async def force_end_match_owner(client: Client, message: Message):
+    if len(message.command) < 2: return await message.reply("⚠️ Usage: `/sudoend <chat_id>`")
+    try:
+        target_chat = int(message.command[1])
+        if target_chat in matches:
+            cleanup_match(target_chat)
+            await client.send_message(target_chat, "🛑 **This match was Force Cancelled by the Bot Owner!**")
+            await message.reply(f"✅ Match successfully cancelled in `{target_chat}`!")
+        else:
+            await message.reply("⚠️ No active match found in that group!")
+    except Exception as e:
+        await message.reply(f"❌ Error: {str(e)}")
+
+@app.on_message(filters.command("ping"))
+async def ping_command(client: Client, message: Message):
+    start_t = time.time()
+    msg = await message.reply("🏓 Pinging...")
+    end_t = time.time()
+    await msg.edit_text(f"🏓 **Pong!**\n⚡ **Latency:** `{round((end_t - start_t) * 1000)}ms`")
 
 
 # ================= HD WINNER SCORECARD ENGINE =================
