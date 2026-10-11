@@ -33,10 +33,13 @@ app = Client(
     bot_token=BOT_TOKEN,
 )
 
-# MongoDB Setup
+# MongoDB Setup (All Collections for Full Persistence)
 mongo_client = AsyncIOMotorClient(MONGO_URI)
 db = mongo_client["CricketBot"]
 groups_col = db["groups"]
+users_col = db["users"]
+matches_col = db["matches"]
+gifs_col = db["gifs"]
 
 # Global Storage
 matches = {}  
@@ -45,6 +48,7 @@ host_active_matches = {}
 pending_gif_save = {}  
 BOT_USERNAME = None  
 BOT_ID = None
+DB_LOADED = False
 
 # ================= PREMIUM EMOJI ENGINE (OLD + NEW MIXED & ALIGNED) =================
 PREMIUM_IDS = [
@@ -89,7 +93,7 @@ E6 = p_emo(10, "🤖") # New ID
 E7 = p_emo(12, "👋") # New ID
 E8 = p_emo(16, "🏆") # New ID
 
-LINE = "━━━━━━━━━━━━━━━" # 15 chars - Never wraps to 2nd line on mobile!
+LINE = "━━━━━━━━━━━━" # 12 chars - Never wraps to 2nd line on any mobile!
 
 # Normal emojis removed from Team Names so buttons don't overflow
 IPL_TEAMS = {
@@ -122,9 +126,84 @@ _click_counter = 0
 _btn_emo_counter = 0
 
 
+# ================= MONGODB STATE PERSISTENCE ENGINE =================
+def serialize_match(match: dict) -> dict:
+    """Converts int keys and sets to MongoDB-compatible formats."""
+    m = dict(match)
+    if "team_A" in m and isinstance(m["team_A"], dict):
+        m["team_A"] = dict(m["team_A"])
+        m["team_A"]["players"] = {str(k): v for k, v in m["team_A"].get("players", {}).items()}
+    if "team_B" in m and isinstance(m["team_B"], dict):
+        m["team_B"] = dict(m["team_B"])
+        m["team_B"]["players"] = {str(k): v for k, v in m["team_B"].get("players", {}).items()}
+    if "stats" in m and isinstance(m["stats"], dict):
+        m["stats"] = {str(k): v for k, v in m["stats"].items()}
+    if "all_out_history" in m:
+        m["all_out_history"] = list(m["all_out_history"])
+    return m
+
+def deserialize_match(m: dict) -> dict:
+    """Restores int keys and sets from MongoDB document."""
+    m.pop("_id", None)
+    if "team_A" in m and isinstance(m["team_A"], dict):
+        m["team_A"]["players"] = {int(k): v for k, v in m["team_A"].get("players", {}).items()}
+    if "team_B" in m and isinstance(m["team_B"], dict):
+        m["team_B"]["players"] = {int(k): v for k, v in m["team_B"].get("players", {}).items()}
+    if "stats" in m and isinstance(m["stats"], dict):
+        m["stats"] = {int(k): v for k, v in m["stats"].items()}
+    if "all_out_history" in m:
+        m["all_out_history"] = set(m["all_out_history"])
+    return m
+
+async def save_match_db(chat_id: int):
+    """Saves active match state to MongoDB so nothing is lost on restart."""
+    match = matches.get(chat_id)
+    if not match:
+        await matches_col.delete_one({"chat_id": chat_id})
+        return
+    data = serialize_match(match)
+    data["chat_id"] = chat_id
+    await matches_col.update_one({"chat_id": chat_id}, {"$set": data}, upsert=True)
+
+async def ensure_db_loaded(client: Client):
+    """Auto-loads active matches and custom GIFs from MongoDB on bot restart."""
+    global DB_LOADED
+    if DB_LOADED:
+        return
+    DB_LOADED = True
+    try:
+        # Load saved Custom GIFs
+        gif_doc = await gifs_col.find_one({"_id": "custom_gifs"})
+        if gif_doc:
+            for k in ["WICKET", "HATTRICK", "WIN"]:
+                if k in gif_doc:
+                    CUSTOM_GIFS[k] = gif_doc[k]
+            for k in [4, 6]:
+                if str(k) in gif_doc:
+                    CUSTOM_GIFS[k] = gif_doc[str(k)]
+
+        # Load active matches
+        saved_matches = await matches_col.find({}).to_list(length=None)
+        for doc in saved_matches:
+            cid = doc.get("chat_id")
+            if not cid:
+                continue
+            m = deserialize_match(doc)
+            matches[cid] = m
+            if m.get("host"):
+                host_active_matches[m["host"]] = cid
+            if m.get("state") == "WAIT_BOWLER" and m.get("bowler"):
+                active_bowlers[m["bowler"]] = cid
+            if m.get("state") in ["WAIT_BOWLER", "WAIT_BATSMAN"]:
+                asyncio.create_task(match_timer_task(client, cid, m["state"], m.get("turn_id", 0)))
+    except Exception as e:
+        print(f"DB Load Error: {e}")
+
+
 # ================= HELPERS & PREMIUM COLOR BUTTONS =================
 async def get_bot_username(client: Client) -> str:
     global BOT_USERNAME, BOT_ID
+    await ensure_db_loaded(client)
     if not BOT_USERNAME:
         me = await client.get_me()
         BOT_USERNAME = me.username
@@ -149,7 +228,6 @@ def c_btn(text: str, callback_data: str = None, url: str = None, color: str = No
     if color is None:
         color = next_random_color()
     if emoji_id is None:
-        # Ithu automatic-a unga 22 IDs-aiyum buttons-la maari maari cycle pannum!
         emoji_id = PREMIUM_IDS[_btn_emo_counter % len(PREMIUM_IDS)]
         _btn_emo_counter += 1
 
@@ -234,10 +312,13 @@ async def log_group_add_remove(client: Client, update):
 
 @app.on_message(filters.command("stats") & filters.user(OWNER_ID))
 async def bot_stats(client: Client, message: Message):
+    await ensure_db_loaded(client)
     active_groups = await groups_col.count_documents({"active": True})
+    total_users = await users_col.count_documents({})
     live_matches = len(matches)
     text = (
         f"{E6} **BOT STATISTICS** {E8}\n{LINE}\n"
+        f"{E7} **Total Started Users:** `{total_users}`\n"
         f"{E2} **Total Active Groups:** `{active_groups}`\n"
         f"{E1} **Live Matches Running:** `{live_matches}`"
     )
@@ -245,13 +326,13 @@ async def bot_stats(client: Client, message: Message):
 
 @app.on_message(filters.command("broadcast") & filters.user(OWNER_ID))
 async def broadcast_msg(client: Client, message: Message):
+    await ensure_db_loaded(client)
     if len(message.command) < 2 and not message.reply_to_message:
         return await message.reply(f"{E4} Usage: `/broadcast Hello everyone!` or reply to a message with `/broadcast`")
     
     active_groups = await groups_col.find({"active": True}).to_list(length=None)
     total_groups = len(active_groups)
     
-    # Broadcast Total Count Feature Added Here
     msg_to_send = await message.reply(f"{E7} **Starting Broadcast...**\n{LINE}\n{E6} **Target Groups:** `{total_groups}`")
     
     success, failed = 0, 0
@@ -270,7 +351,6 @@ async def broadcast_msg(client: Client, message: Message):
             failed += 1
             await groups_col.update_one({"chat_id": grp["chat_id"]}, {"$set": {"active": False}})
 
-    # Broadcast Final Stats Feature
     await msg_to_send.edit_text(
         f"{E8} **Broadcast Completed!**\n{LINE}\n"
         f"{E2} **Total Groups Checked:** `{total_groups}`\n"
@@ -280,6 +360,7 @@ async def broadcast_msg(client: Client, message: Message):
 
 @app.on_message(filters.command("sudoend") & filters.user(OWNER_ID))
 async def force_end_match_owner(client: Client, message: Message):
+    await ensure_db_loaded(client)
     if len(message.command) < 2:
         return await message.reply(f"{E4} Usage: `/sudoend <chat_id>`")
     try:
@@ -295,6 +376,7 @@ async def force_end_match_owner(client: Client, message: Message):
 
 @app.on_message(filters.command("ping"))
 async def ping_command(client: Client, message: Message):
+    await ensure_db_loaded(client)
     start_t = time.time()
     msg = await message.reply(f"{E7} Pinging...")
     end_t = time.time()
@@ -422,6 +504,10 @@ def cleanup_match(chat_id: int):
     for b_id, c_id in list(active_bowlers.items()):
         if c_id == chat_id: active_bowlers.pop(b_id, None)
     matches.pop(chat_id, None)
+    try:
+        asyncio.create_task(matches_col.delete_one({"chat_id": chat_id}))
+    except Exception:
+        pass
 
 def get_overs_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -552,6 +638,7 @@ async def match_timer_task(client: Client, chat_id: int, state_type: str, turn_i
         match["stats"][match["bowler"]]["balls_bowled"] += 1
         match["stats"][match["striker"]]["balls_faced"] += 1
         match["consecutive_wickets"] = 0
+        await save_match_db(chat_id)
         await evaluate_and_continue(client, chat_id, match, is_wicket=False)
 
     elif state_type == "WAIT_BATSMAN":
@@ -567,6 +654,7 @@ async def match_timer_task(client: Client, chat_id: int, state_type: str, turn_i
         match["stats"][bowler_id]["balls_bowled"] += 1
         match["stats"][striker_id]["balls_faced"] += 1
         match["consecutive_wickets"] += 1
+        await save_match_db(chat_id)
         await evaluate_and_continue(client, chat_id, match, is_wicket=True)
 
 
@@ -584,6 +672,7 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
             match["bat_team"], match["bowl_team"] = match["bowl_team"], match["bat_team"]
             match["out_players"], match["striker"], match["bowler"] = [], None, None
             match["consecutive_wickets"] = 0
+            await save_match_db(chat_id)
 
             await client.send_message(
                 chat_id,
@@ -625,9 +714,11 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
             match["bowler"] = None
             await client.send_message(chat_id, f"{E6} **End of Over {bat_dict['balls']//6}!**")
         
+        await save_match_db(chat_id)
         await asyncio.sleep(1) 
         await prompt_host_player_selection(client, chat_id, need_bat, need_bowl)
     else:
+        await save_match_db(chat_id)
         await asyncio.sleep(1)
         await prompt_bowler_dm(client, chat_id)
 
@@ -637,7 +728,14 @@ async def evaluate_and_continue(client: Client, chat_id: int, match: dict, is_wi
 async def start_private(client: Client, message: Message):
     b_uname = await get_bot_username(client)
     
-    # User Start Log Feature Added Here
+    # Save user permanently in MongoDB
+    await users_col.update_one(
+        {"user_id": message.from_user.id},
+        {"$set": {"name": message.from_user.first_name, "active": True}},
+        upsert=True
+    )
+
+    # User Start Log Feature
     try:
         log_msg = f"{E6} **New User Started Bot!**\n{LINE}\n{E5} **User:** {message.from_user.mention}\n{E1} **ID:** `{message.from_user.id}`"
         await client.send_message(LOG_GROUP_ID, log_msg)
@@ -667,6 +765,10 @@ async def start_private(client: Client, message: Message):
 
 @app.on_message(filters.command("help") & (filters.group | filters.private))
 async def help_command(client: Client, message: Message):
+    await ensure_db_loaded(client)
+    if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
+        await groups_col.update_one({"chat_id": message.chat.id}, {"$set": {"chat_name": message.chat.title or "Group", "active": True}}, upsert=True)
+
     kb = InlineKeyboardMarkup([[c_btn("Click to Shift Color", callback_data="noop", color=next_random_color())]])
     await message.reply(
         f"{E1} **HOW TO PLAY IPL CRICKET**\n{LINE}\n"
@@ -685,7 +787,10 @@ async def help_command(client: Client, message: Message):
 
 @app.on_message(filters.command("score") & filters.group)
 async def show_scorecard(client: Client, message: Message):
+    await ensure_db_loaded(client)
     chat_id = message.chat.id
+    await groups_col.update_one({"chat_id": chat_id}, {"$set": {"chat_name": message.chat.title or "Group", "active": True}}, upsert=True)
+
     match = matches.get(chat_id)
     if not match or match["status"] != "LIVE":
         return await message.reply(f"{E4} **No live match is currently in progress!**")
@@ -715,6 +820,7 @@ async def show_scorecard(client: Client, message: Message):
 
 @app.on_message(filters.animation & filters.private)
 async def handle_custom_gif_upload(client: Client, message: Message):
+    await ensure_db_loaded(client)
     if message.from_user.id != OWNER_ID: 
         return await message.reply(f"{E4} **Access Denied!**")
 
@@ -730,10 +836,12 @@ async def handle_custom_gif_upload(client: Client, message: Message):
 
 @app.on_callback_query(filters.regex(r"^savegif_(6|4|WICKET|WIN|HATTRICK|CLEAR)$"))
 async def handle_save_gif_callback(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     if cq.from_user.id != OWNER_ID: return await safe_answer(cq, "Only the Bot Owner can do this!", show_alert=True)
     uid, choice = cq.from_user.id, cq.data.split("_")[1]
     if choice == "CLEAR":
         for k in CUSTOM_GIFS: CUSTOM_GIFS[k].clear()
+        await gifs_col.delete_one({"_id": "custom_gifs"})
         return await safe_edit(cq.message, f"{E4} **All custom GIFs cleared!**")
     
     fid = pending_gif_save.get(uid)
@@ -741,18 +849,27 @@ async def handle_save_gif_callback(client: Client, cq: CallbackQuery):
     
     key = int(choice) if choice in ["4", "6"] else choice
     CUSTOM_GIFS[key].append(fid)
+    await gifs_col.update_one(
+        {"_id": "custom_gifs"},
+        {"$set": {str(k): v for k, v in CUSTOM_GIFS.items()}},
+        upsert=True
+    )
     await safe_answer(cq, f"Saved as {choice} GIF!", show_alert=True)
     await safe_edit(cq.message, f"{E2} **Success!** This GIF will now appear whenever a **{choice}** happens!", reply_markup=InlineKeyboardMarkup([[c_btn(f"Saved for {choice}", "noop")]]))
 
 
 @app.on_message(filters.command("cricket") & filters.group)
 async def create_lobby(client: Client, message: Message):
+    await ensure_db_loaded(client)
     chat_id = message.chat.id
+    await groups_col.update_one({"chat_id": chat_id}, {"$set": {"chat_name": message.chat.title or "Unknown Group", "active": True}}, upsert=True)
+
     if chat_id in matches:
         m = matches[chat_id]
         return await message.reply(f"{E4} **A match is already active in this group!**\n{E2} Only Match Host ({mention(m['host'], m['host_name'])}) can end it.")
 
     matches[chat_id] = {"host": message.from_user.id, "host_name": message.from_user.first_name, "status": "SELECT_OVERS"}
+    await save_match_db(chat_id)
     await message.reply(
         f"{E2} **Match Host:** {mention(message.from_user.id, message.from_user.first_name)}\n{LINE}\n"
         f"{E5} **Host, select the number of overs to open the lobby:**",
@@ -762,6 +879,7 @@ async def create_lobby(client: Client, message: Message):
 
 @app.on_callback_query(filters.regex(r"^setovers_(\d+)$"))
 async def setup_lobby_after_overs(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     chat_id = cq.message.chat.id
     match = matches.get(chat_id)
     if not match or match.get("status") != "SELECT_OVERS": return await safe_answer(cq, "Session Expired!", show_alert=True)
@@ -782,10 +900,12 @@ async def setup_lobby_after_overs(client: Client, cq: CallbackQuery):
     await safe_answer(cq, f"Selected {overs} Overs!")
     sent = await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
     if isinstance(sent, Message): match["lobby_msg_id"] = sent.id
+    await save_match_db(chat_id)
 
 
 @app.on_message(filters.command("setteam") & filters.group)
 async def setteam_command(client: Client, message: Message):
+    await ensure_db_loaded(client)
     chat_id = message.chat.id
     match = matches.get(chat_id)
     if not match: return await message.reply(f"{E4} **No active match lobby found!** Send `/cricket` first.")
@@ -796,6 +916,7 @@ async def setteam_command(client: Client, message: Message):
 
 @app.on_message(filters.command("endcricket") & filters.group)
 async def force_end_match(client: Client, message: Message):
+    await ensure_db_loaded(client)
     chat_id = message.chat.id
     match = matches.get(chat_id)
     if not match: return await message.reply(f"{E4} **There is no active match in this group!**")
@@ -806,6 +927,7 @@ async def force_end_match(client: Client, message: Message):
 
 @app.on_callback_query(filters.regex(r"^(open_ipl_menu|back_to_lobby|close_setteam|setipl_(A|B)_([A-Z]+))$"))
 async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     chat_id, user, match = cq.message.chat.id, cq.from_user, matches.get(cq.message.chat.id)
     if not match or match["status"] != "LOBBY": return await safe_answer(cq, "Lobby is closed!", show_alert=True)
     if cq.data != "back_to_lobby" and user.id != match["host"]: return await safe_answer(cq, "Only the Match Host can change names!", show_alert=True)
@@ -825,6 +947,7 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
     if match[other_key]["name"] == new_ipl_name: return await safe_answer(cq, f"{new_ipl_name} is already taken!", show_alert=True)
 
     match[target_key]["name"] = new_ipl_name
+    await save_match_db(chat_id)
     await safe_answer(cq, f"Team renamed to {new_ipl_name}!")
     
     is_standalone = (cq.message.id != match.get("lobby_msg_id") and match.get("lobby_msg_id") is not None)
@@ -837,6 +960,7 @@ async def handle_ipl_team_callbacks(client: Client, cq: CallbackQuery):
 
 @app.on_callback_query(filters.regex(r"^(join_A|join_B|refresh_lobby|leave_lobby|start_game|cancel_game)$"))
 async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     chat_id, user, match = cq.message.chat.id, cq.from_user, matches.get(cq.message.chat.id)
     if not match or match["status"] != "LOBBY": return await safe_answer(cq, "Lobby is closed!", show_alert=True)
 
@@ -846,27 +970,41 @@ async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
         return await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
     
     elif data in ["join_A", "join_B"]:
-        try:
-            await client.send_chat_action(user.id, enums.ChatAction.TYPING)
-        except Exception:
-            return await safe_answer(
-                cq,
-                "⚠️ MUST START BOT FIRST!\n\nClick 'Activate Bot DM' and send /start in private chat to join!",
-                show_alert=True,
-            )
+        # Step 1: Check if user already started bot in MongoDB
+        user_in_db = await users_col.find_one({"user_id": user.id, "active": True})
+        if not user_in_db:
+            # Step 2: Live check for users who started before DB was added
+            try:
+                await client.get_users(user.id)
+                await client.send_chat_action(user.id, enums.ChatAction.TYPING)
+                await users_col.update_one(
+                    {"user_id": user.id},
+                    {"$set": {"name": user.first_name, "active": True}},
+                    upsert=True
+                )
+            except Exception:
+                return await safe_answer(
+                    cq,
+                    "⚠️ MUST START BOT FIRST!\n\nClick 'Activate Bot DM' and send /start in private chat to join!",
+                    show_alert=True,
+                )
 
         match["team_A"]["players"].pop(user.id, None)
         match["team_B"]["players"].pop(user.id, None)
         t_key = "team_A" if data == "join_A" else "team_B"
         match[t_key]["players"][user.id] = user.first_name
         init_player_stats(match, user.id, user.first_name)
+        await save_match_db(chat_id)
         await safe_answer(cq, f"You joined {match[t_key]['name']}!")
         await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
 
     elif data == "leave_lobby":
         rem = match["team_A"]["players"].pop(user.id, None) or match["team_B"]["players"].pop(user.id, None)
-        if rem: await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
-        else: await safe_answer(cq, "You have not joined any team yet!", show_alert=True)
+        if rem:
+            await save_match_db(chat_id)
+            await safe_edit(cq.message, format_lobby_text(match), reply_markup=get_lobby_kb(match, b_uname))
+        else:
+            await safe_answer(cq, "You have not joined any team yet!", show_alert=True)
 
     elif data == "cancel_game":
         if user.id != match["host"]: return await safe_answer(cq, "Only Match Host can cancel!", show_alert=True)
@@ -881,6 +1019,7 @@ async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
         match["max_wickets"] = min(len(match["team_A"]["players"]), len(match["team_B"]["players"]))
         cap_a_id = list(match["team_A"]["players"].keys())[0]
         match["toss_caller"] = cap_a_id
+        await save_match_db(chat_id)
 
         await safe_answer(cq, "Time for Toss!")
         await safe_edit(
@@ -894,6 +1033,7 @@ async def handle_lobby_buttons(client: Client, cq: CallbackQuery):
 
 @app.on_callback_query(filters.regex(r"^toss_(Heads|Tails)$"))
 async def handle_toss_call(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     chat_id, match = cq.message.chat.id, matches.get(cq.message.chat.id)
     if not match or match["status"] != "TOSS": return
     if cq.from_user.id != match["toss_caller"]: return await safe_answer(cq, "Only designated player can call toss!", show_alert=True)
@@ -902,6 +1042,7 @@ async def handle_toss_call(client: Client, cq: CallbackQuery):
     win_t_key = "team_A" if call == result else "team_B"
     match["toss_winner_team"] = win_t_key
     match["toss_winner_cap"] = list(match[win_t_key]["players"].keys())[0]
+    await save_match_db(chat_id)
 
     win_name, cap_m = match[win_t_key]["name"], mention(match["toss_winner_cap"], match[win_t_key]["players"][match["toss_winner_cap"]])
     await safe_answer(cq, f"Toss Result: {result}!")
@@ -916,6 +1057,7 @@ async def handle_toss_call(client: Client, cq: CallbackQuery):
 
 @app.on_callback_query(filters.regex(r"^decide_(bat|bowl)$"))
 async def handle_toss_decision(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     chat_id, match = cq.message.chat.id, matches.get(cq.message.chat.id)
     if not match or match["status"] != "TOSS": return
     if cq.from_user.id != match["toss_winner_cap"]: return await safe_answer(cq, "Only Toss-Winning side can choose!", show_alert=True)
@@ -926,8 +1068,9 @@ async def handle_toss_decision(client: Client, cq: CallbackQuery):
     match["bat_team"] = win_team if choice == "bat" else lose_team
     match["bowl_team"] = lose_team if choice == "bat" else win_team
     match["status"], match["striker"], match["bowler"] = "LIVE", None, None
+    await save_match_db(chat_id)
 
-    # Match Start Log Feature Added Here
+    # Match Start Log Feature
     try:
         log_msg = (
             f"{E1} **New Match Started!**\n{LINE}\n"
@@ -958,6 +1101,7 @@ async def prompt_host_player_selection(client: Client, chat_id: int, need_bat: b
     if not match or match["status"] != "LIVE": return
     match["state"] = "HOST_SELECTING"
     match["turn_id"] += 1
+    await save_match_db(chat_id)
 
     host_id, b_uname = match["host"], await get_bot_username(client)
     kb = get_host_player_select_kb(match, need_bat, need_bowl)
@@ -976,11 +1120,13 @@ async def prompt_host_player_selection(client: Client, chat_id: int, need_bat: b
             reply_markup=kb
         )
     except RPCError:
+        await users_col.update_one({"user_id": host_id}, {"$set": {"active": False}})
         await client.send_message(chat_id, f"{E4} {mention(host_id, match['host_name'])} hasn't started the Bot DM!")
     
 
 @app.on_callback_query(filters.regex(r"^hostsel_(bat|bowl)_(\d+)$"))
 async def handle_host_selection(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     host_id, chat_id = cq.from_user.id, host_active_matches.get(cq.from_user.id)
     match = matches.get(chat_id) if chat_id else None
     if not match or match.get("state") != "HOST_SELECTING" or host_id != match["host"]: 
@@ -988,6 +1134,7 @@ async def handle_host_selection(client: Client, cq: CallbackQuery):
         
     role, uid = cq.data.split("_")[1], int(cq.data.split("_")[2])
     match["striker" if role == "bat" else "bowler"] = uid
+    await save_match_db(chat_id)
     await safe_answer(cq, f"{'Striker' if role=='bat' else 'Bowler'} Assigned!")
         
     need_bat, need_bowl = match["striker"] is None, match["bowler"] is None
@@ -1011,6 +1158,7 @@ async def prompt_bowler_dm(client: Client, chat_id: int):
     match["state"] = "WAIT_BOWLER"
     match["turn_id"] += 1
     active_bowlers[bowler_id] = chat_id
+    await save_match_db(chat_id)
 
     b_uname = await get_bot_username(client)
     await client.send_message(
@@ -1031,6 +1179,7 @@ async def prompt_bowler_dm(client: Client, chat_id: int):
             reply_markup=get_bowler_numbers_kb("bowl")
         )
     except RPCError:
+        await users_col.update_one({"user_id": bowler_id}, {"$set": {"active": False}})
         await client.send_message(chat_id, f"{E4} {bowler_m} has blocked or not started the Bot DM!")
     
     asyncio.create_task(match_timer_task(client, chat_id, "WAIT_BOWLER", match["turn_id"]))
@@ -1038,6 +1187,7 @@ async def prompt_bowler_dm(client: Client, chat_id: int):
 
 @app.on_callback_query(filters.regex(r"^bowl_([1-6])$"))
 async def handle_bowler_dm(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     bowler_id = cq.from_user.id
     if bowler_id not in active_bowlers: return await safe_answer(cq, "It is not your turn to bowl right now!", show_alert=True)
 
@@ -1049,6 +1199,7 @@ async def handle_bowler_dm(client: Client, cq: CallbackQuery):
     match["current_ball"] = ball_val
     match["state"] = "WAIT_BATSMAN"
     match["turn_id"] += 1
+    await save_match_db(chat_id)
 
     await safe_answer(cq, f"You bowled {ball_val}!")
     await safe_edit(
@@ -1074,6 +1225,7 @@ async def handle_bowler_dm(client: Client, cq: CallbackQuery):
 
 @app.on_callback_query(filters.regex(r"^bat_([0-6])$"))
 async def handle_batsman_group(client: Client, cq: CallbackQuery):
+    await ensure_db_loaded(client)
     chat_id, match = cq.message.chat.id, matches.get(cq.message.chat.id)
     if not match or match["state"] != "WAIT_BATSMAN": return await safe_answer(cq, "This ball has already been played!", show_alert=True)
     if cq.from_user.id != match["striker"]: return await safe_answer(cq, "You are not the current Striker!", show_alert=True)
@@ -1130,6 +1282,7 @@ async def handle_batsman_group(client: Client, cq: CallbackQuery):
         await safe_answer(cq, f"{bat_val} Runs!")
         action_header = f"{shot_tag}\n{E1} **Batsman ({striker_m}):** `{bat_val}` | **Ball:** `{bowl_val}`"
 
+    await save_match_db(chat_id)
     target_line = f" | **Target:** `{match['target']}`" if match["target"] else ""
     board_footer = f"\n{LINE}\n{E6} **{bat_dict['name']}:** `{bat_dict['score']}/{bat_dict['wickets']}` ({overs_str}/{match.get('overs_limit', 6)}.0 ov){target_line}"
     
@@ -1164,5 +1317,5 @@ async def handle_noop(client: Client, cq: CallbackQuery):
     await safe_answer(cq, "Please select an option below!")
 
 if __name__ == "__main__":
-    print("Dynamic Color Kurigram IPL Cricket Bot Starting with Advanced Logging...")
+    print("Dynamic Color Kurigram IPL Cricket Bot Starting with Full MongoDB Persistence...")
     app.run()
